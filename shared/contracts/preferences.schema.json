@@ -32,11 +32,27 @@
         "Off"
       ]
     },
+    "dragButton": {
+      "enum": ["Primary", "Secondary"]
+    },
     "exportDirectory": {
       "type": [
         "string",
         "null"
       ]
+    },
+    "clipboardDirectory": {
+      "type": ["string", "null"]
+    },
+    "jpegQuality": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "webPQuality": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
     },
     "shortcuts": {
       "type": "object",

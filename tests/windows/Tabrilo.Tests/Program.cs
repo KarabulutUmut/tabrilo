@@ -29,6 +29,8 @@ Console.WriteLine($"Evidence directory {evidence}");
 var checks = new (string Name, Func<Task> Run)[]
 {
     ("Semantic catalog and local preferences", Contracts),
+    ("Operation routing and output policy", OperationPolicy),
+    ("Wheel sectors and editor coordinate transforms", DesktopGeometry),
     ("Atomic output, original hashes and cancellation", Atomic),
     ("Native PNG validation, masks, crop and rotation", Redaction),
     ("Annotation, framing, adjustments and WebP", Edits),
@@ -73,6 +75,53 @@ Task Contracts()
     return Task.CompletedTask;
 }
 
+async Task OperationPolicy()
+{
+    var folder = Folder("operation-policy");
+    var sub = Directory.CreateDirectory(Path.Combine(folder, "exports")).FullName;
+    var first = new OperationInput(Path.Combine(folder, "first.png"));
+    var second = new OperationInput(Path.Combine(sub, "second.png"));
+    var clipboard = new OperationInput(Path.Combine(folder, "pasted.png"), Clipboard: true);
+    var defaults = new OutputPolicy(null, null);
+    Require(defaults.For(first) == folder && defaults.For(second) == sub, "per-source default");
+    Require(defaults.For(clipboard) is null, "clipboard scratch path excluded");
+    Require(defaults.ForCombined([first, second]) is null && defaults.ForCombined([first]) == folder,
+        "explicit destination for mixed folders");
+    Require(new OutputPolicy(sub, null).ForCombined([first, second, clipboard]) == sub &&
+        new OutputPolicy(folder, sub).For(clipboard) == sub, "valid fixed export preference");
+    Require(await OperationDestination.Writable(sub, default) &&
+        !await OperationDestination.Writable(Path.Combine(sub, "unavailable"), default) &&
+        !Directory.EnumerateFileSystemEntries(sub).Any(), "private write probe is cleaned up");
+    using var cancellation = new CancellationTokenSource();
+    cancellation.Cancel();
+    await Expect<OperationCanceledException>(() => OperationDestination.Writable(sub, cancellation.Token));
+    Require(new[] { "image.metadata", "pdf.compress", "archive.extract", "qr.read" }.All(id =>
+        QuickOperations.Handles(id) && OperationRouting.For(id) == Presentation.Quick), "direct paths");
+    Require(new[] { "image.convert", "image.compress" }.All(id =>
+        QuickOperations.Handles(id) && OperationRouting.For(id) == Presentation.Choices), "compact format/preset paths");
+    Require(OperationRouting.For("image.redact") == Presentation.Editor && !QuickOperations.Handles("image.redact") &&
+        OperationRouting.For("pdf.compress", advanced: true) == Presentation.Choices, "editor and explicit advanced routing");
+}
+
+Task DesktopGeometry()
+{
+    var center = Wheel.Diameter / 2;
+    var target = new System.Windows.Point(center + 35, center - 122);
+    Require(Wheel.Sector(0).FillContains(target) && !Wheel.Sector(1).FillContains(target),
+        "sector includes drop space outside the visible label");
+    Require(Enumerable.Range(0, 7).All(index => !Wheel.Sector(index).FillContains(new System.Windows.Point(center, center))),
+        "center is neutral");
+    var view = new ImageViewport(new System.Windows.Rect(20, 95, 400, 200), 800, 400);
+    Require(view.At(new System.Windows.Point(220, 195)) == new ImagePoint(400, 200) &&
+        view.At(new System.Windows.Point(1000, -100)) == new ImagePoint(799, 0), "letterboxed fit and clamping");
+    Require(view.Bounds(new(100, 20, 80, 60)) == new System.Windows.Rect(70, 105, 40, 30), "pixel edge mapping");
+    Require(view.Move(new(700, 340, 80, 60), new(740, 350), new(790, 397)) == new PixelRect(720, 340, 80, 60),
+        "move is clamped to image");
+    Require(view.Resize(new(10, 10, 50, 50), new(10, 10), new(0, 0), -1, -1, 1) == new PixelRect(0, 0, 60, 60),
+        "aspect resize holds the opposite corner");
+    return Task.CompletedTask;
+}
+
 async Task Atomic()
 {
     var folder = Folder("atomic");
@@ -100,6 +149,8 @@ async Task Redaction()
     var source = Path.Combine(folder, "source.png");
     WriteBitmap(source, 8, 6, (x, y) => ((byte)(20 * x), (byte)(35 * y), (byte)240, (byte)(x == 0 ? 0 : 120)), metadata: true);
     var hash = Hash(source);
+    var preview = await Images.ReadEditorPreviewAsync(source, default);
+    Require(preview.Width == 8 && preview.Height == 6, "oriented editor dimensions");
     var result = await Images.ProcessAsync(source, new(ImageFormat.Png, Redaction: true,
         Edits: new(Redactions: [new(1, 2, 2, 3)])), default);
     var output = await Images.SaveAsync(result, folder, "redacted", default);

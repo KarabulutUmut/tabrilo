@@ -21,7 +21,7 @@ public partial class MainWindow : Window
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Desktop.InstallIdentity);
     private readonly LocalState storage = new(DataRoot);
     private readonly ViewState state;
-    private readonly Workflows workflows;
+    private readonly OperationCoordinator operations;
     private readonly Desktop desktop;
     private readonly DragGesture drag;
     private readonly List<FileStream> pasted = [];
@@ -34,17 +34,20 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        state = new(id => _ = Dispatch(id), () => job?.Cancel());
+        state = new(id => _ = Dispatch(id), CancelJob);
         DataContext = state;
         try { preferences = storage.Read(); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         { preferences = new(); state.Status = "Preferences are unavailable."; }
         Theme.Apply(preferences.Appearance);
-        desktop = new(this, Quit);
+        operations = new(() => preferences, folder => Save(preferences with { ClipboardDirectory = folder }),
+            origin => origin != InvocationOrigin.ExplorerWheel && IsVisible && WindowState != WindowState.Minimized ? this : null,
+            IsShortcut, SetBusy, status => state.Status = status, RecordOutputs);
+        desktop = new(this, Quit, operations.ShowResults);
         desktop.Tray(preferences.UseTray);
-        workflows = new(this, state, IsShortcut, RecordOutputs);
-        drag = new(() => state.Busy ? "Off" : preferences.DragModifier,
-            point => OpenWheel([], point), () => { if (wheel is { ShowActivated: false }) wheel.Close(); });
+        drag = new(() => state.Busy ? "Off" : preferences.DragModifier, () => preferences.DragButton,
+            point => OpenWheel([], point), escaped => wheel?.EndGesture(escaped));
+        Title = App.BuildName;
         Loaded += (_, _) =>
         {
             if (App.InputPaths.Length != 0) Add(App.InputPaths);
@@ -61,6 +64,7 @@ public partial class MainWindow : Window
             drag.Dispose();
             wheel?.Close();
             desktop.Dispose();
+            operations.Dispose();
             foreach (var lease in pasted) lease.Dispose();
         };
     }
@@ -70,20 +74,40 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, CancelEventArgs args)
     {
-        if (state.Busy)
-        {
-            job?.Cancel();
-            args.Cancel = true;
-            return;
-        }
         if (preferences.UseTray && !quitting)
         {
             args.Cancel = true;
             Hide();
+            return;
+        }
+        if (state.Busy)
+        {
+            args.Cancel = true;
+            RequestQuit();
         }
     }
 
-    private void Quit() { quitting = true; Close(); }
+    private void CancelJob() { job?.Cancel(); operations.Cancel(); }
+
+    private void RequestQuit()
+    {
+        quitting = true;
+        CancelJob();
+        foreach (var window in Application.Current.Windows.OfType<Window>().ToArray())
+            if (window != this && !operations.OwnsResults(window) && window.IsVisible) window.Close();
+    }
+
+    private void Quit()
+    {
+        RequestQuit();
+        if (!state.Busy) Close();
+    }
+
+    private void SetBusy(bool value)
+    {
+        state.Busy = value;
+        if (!value && quitting) Dispatcher.BeginInvoke(new Action(Close));
+    }
 
     private async Task Dispatch(string id)
     {
@@ -94,6 +118,7 @@ public partial class MainWindow : Window
                 case "home":
                 case "recent":
                 case "settings": page = id; Render(); return;
+                case "results": operations.ShowResults(); return;
                 case "open":
                     var picker = new OpenFileDialog
                     {
@@ -112,24 +137,7 @@ public partial class MainWindow : Window
                     return;
             }
 
-            if (state.Busy) return;
-            var inputs = CurrentInputs();
-            if (Commands.All.FirstOrDefault(item => item.Id == id) is not { } command || !command.AppliesTo(inputs))
-            {
-                state.Status = "Select compatible files for this action.";
-                return;
-            }
-            using var cancellation = new CancellationTokenSource();
-            job = cancellation;
-            state.Busy = true;
-            state.Status = command.Label + "…";
-            try { await workflows.Execute(command, inputs, preferences.ExportDirectory, cancellation.Token); }
-            finally
-            {
-                job = null;
-                state.Busy = false;
-                if (state.Status == command.Label + "…") state.Status = "Ready.";
-            }
+            await RunSelected(id);
         }
         catch (OperationCanceledException) { state.Status = "Cancelled. Published results are kept."; }
         catch (Exception error) when (error is IOException or InvalidDataException or ArgumentException or NotSupportedException or UnauthorizedAccessException or TimeoutException)
@@ -139,14 +147,18 @@ public partial class MainWindow : Window
         { state.Status = "Windows or the update service could not complete this action."; }
     }
 
-    private void Add(IEnumerable<string> paths)
+    private Task RunSelected(string id, OperationRequest? request = null) => state.Busy ? Task.CompletedTask :
+        operations.RunAsync(id, state.Inputs.Select(item => new OperationInput(item.Path, item.Clipboard)),
+            state.Inputs.Any(item => item.Clipboard) ? InvocationOrigin.Clipboard : InvocationOrigin.Home, request);
+
+    private void Add(IEnumerable<string> paths, bool clipboard = false)
     {
         var current = CurrentInputs().ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var path in paths.Take(201))
         {
             if (state.Inputs.Count >= 200 || !File.Exists(path) || !current.Add(path)) continue;
             var kind = FileKinds.Classify(path);
-            state.Inputs.Add(new(path, Path.GetFileName(path) + (kind == "unsupported" ? "   ·   Unsupported format" : "   ·   " + kind)));
+            state.Inputs.Add(new(path, Path.GetFileName(path) + (kind == "unsupported" ? "   ·   Unsupported format" : "   ·   " + kind), clipboard));
         }
         page = "home";
         state.Status = state.Inputs.Count == 0 ? "No files were added." : $"{state.Inputs.Count} selected file references.";
@@ -155,7 +167,7 @@ public partial class MainWindow : Window
 
     private void Paste()
     {
-        if (Clipboard.ContainsFileDropList()) { Add(Clipboard.GetFileDropList().Cast<string>()); return; }
+        if (Clipboard.ContainsFileDropList()) { Add(Clipboard.GetFileDropList().Cast<string>(), clipboard: true); return; }
         var bitmap = Clipboard.GetImage();
         if (bitmap is null) { state.Status = "The clipboard has no file or image."; return; }
         if ((long)bitmap.PixelWidth * bitmap.PixelHeight > 45_000_000)
@@ -175,7 +187,7 @@ public partial class MainWindow : Window
                 4096, FileOptions.DeleteOnClose));
         }
         catch { File.Delete(path); throw; }
-        Add([path]);
+        Add([path], clipboard: true);
     }
 
     private string[] CurrentInputs() => state.Inputs.Select(item => item.Path).ToArray();
@@ -200,18 +212,25 @@ public partial class MainWindow : Window
     {
         if (wheel is not null || state.Busy) return;
         if (!external && paths.Length == 0) { state.Status = "Choose files before opening the wheel."; return; }
+        var clipboard = external ? [] : state.Inputs.Where(item => item.Clipboard).Select(item => item.Path)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var menu = new Wheel(paths, preferences.Favorites, (id, received) =>
         {
-            desktop.Show();
-            state.Inputs.Clear();
-            Add(received);
-            _ = Dispatch(id);
-        }, external);
-        if (!external) menu.Owner = this;
+            if (state.Busy || quitting) return;
+            var origin = external ? InvocationOrigin.ExplorerWheel : InvocationOrigin.KeyboardWheel;
+            _ = operations.RunAsync(id, received.Select(path => new OperationInput(path, clipboard.Contains(path))), origin);
+        }, external, TrackWheel);
+        if (!external && IsVisible) menu.Owner = this;
+        TrackWheel(menu);
+        menu.PositionAt(at.X, at.Y);
+        if (external) menu.Show();
+        else menu.ShowDialog();
+    }
+
+    private void TrackWheel(Wheel menu)
+    {
         wheel = menu;
         menu.Closed += (_, _) => { if (ReferenceEquals(wheel, menu)) wheel = null; };
-        menu.Show();
-        menu.PositionAt(at.X, at.Y);
     }
 
     private void OnKey(object sender, KeyEventArgs args)
@@ -251,8 +270,7 @@ public partial class MainWindow : Window
     private StackPanel Home()
     {
         var panel = new StackPanel();
-        Controls.Heading(panel, "Home");
-        var target = new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(24, 18, 24, 10),
+        var target = new Border { CornerRadius = new CornerRadius(10), Padding = new Thickness(16, 14, 16, 8),
             BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 0, 8) };
         target.SetResourceReference(Border.BackgroundProperty, "Surface");
         target.SetResourceReference(Border.BorderBrushProperty, "Border");
@@ -260,7 +278,7 @@ public partial class MainWindow : Window
         target.Child = drop;
         panel.Children.Add(target);
         Controls.Heading(drop, "Drop files here", 18);
-        drop.Children.Add(Controls.Text("Work with images, PDFs and archives on this device.", secondary: true));
+        drop.Children.Add(Controls.Text("Images, PDFs and archives", secondary: true));
         var buttons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         buttons.Children.Add(Controls.Button("Choose files…", () => _ = Dispatch("open"), true));
         buttons.Children.Add(Controls.Button("Paste", () => _ = Dispatch("paste")));
@@ -291,7 +309,20 @@ public partial class MainWindow : Window
         Controls.Heading(panel, "Actions", 16);
         var operations = new WrapPanel();
         foreach (var command in applicable)
-            operations.Children.Add(Controls.Button(command.Label, () => _ = Dispatch(command.Id)));
+        {
+            var button = Controls.Button(command.Label, () => _ = Dispatch(command.Id));
+            operations.Children.Add(button);
+            if (command.Id == "pdf.compress")
+                operations.Children.Add(Controls.Button("Lossy PDF compression…", () => _ = RunSelected(command.Id, new(Advanced: true))));
+            if (command.Id == "qr.read" && CurrentInputs().Any(path => FileKinds.Classify(path) == "pdf"))
+                operations.Children.Add(Controls.Button("Scan selected PDF pages…", () => _ = RunSelected(command.Id, new(Advanced: true))));
+            if (command.Id is "archive.extract" or "image.metadata" or "pdf.compress" or "image.pdf" or "pdf.merge")
+            {
+                var alternative = new MenuItem { Header = "Change destination…" };
+                alternative.Click += (_, _) => _ = RunSelected(command.Id, new(ChooseDestination: true));
+                button.ContextMenu = new ContextMenu { Items = { alternative } };
+            }
+        }
         panel.Children.Add(operations);
         return panel;
     }
@@ -326,6 +357,7 @@ public partial class MainWindow : Window
         var appearance = Controls.Choice(panel, "Color theme", ["System", "Light", "Dark"], preferences.Appearance);
         Controls.Heading(panel, "Shortcuts and wheel", 16);
         var modifier = Controls.Choice(panel, "Explorer drag modifier", ["Shift", "Ctrl", "Alt", "Off"], preferences.DragModifier);
+        var dragButton = Controls.Choice(panel, "Explorer drag button", ["Primary", "Secondary"], preferences.DragButton);
         var fields = Commands.All.Where(command => command.Shortcut is not null).ToDictionary(command => command,
             command => Controls.Field(panel, command.Label, Binding(command)!, 30));
         var catalog = Commands.All.Where(item => item.Scope == "operation").ToArray();
@@ -367,12 +399,16 @@ public partial class MainWindow : Window
 
         Controls.Heading(panel, "Files and privacy", 16);
         var destination = Controls.Field(panel, "Default export folder (optional)", preferences.ExportDirectory ?? "", 2048);
+        var clipboardFolder = Controls.Field(panel, "Clipboard export folder (optional)", preferences.ClipboardDirectory ?? "", 2048);
+        var jpeg = Controls.Field(panel, "JPEG conversion quality", preferences.JpegQuality.ToString(), 3);
+        var webp = Controls.Field(panel, "WebP conversion quality", preferences.WebPQuality.ToString(), 3);
         var history = Controls.Checkbox(panel, "Keep up to 50 recent result references", preferences.KeepHistory);
         Controls.Heading(panel, "Startup and tray", 16);
+        panel.Children.Add(Controls.Text("The Explorer wheel works while Tabrilo is running.", 13, true));
         var tray = Controls.Checkbox(panel, "Keep Tabrilo in the notification area when the window closes", preferences.UseTray);
         var startup = Controls.Checkbox(panel, "Launch at sign-in", preferences.StartAtLogin);
         Controls.Heading(panel, "Updates and about", 16);
-        panel.Children.Add(Controls.Text("Tabrilo " + typeof(MainWindow).Assembly.GetName().Version!.ToString(3) + " · " +
+        panel.Children.Add(Controls.Text(App.BuildName + " · " +
             (Updates.Configured ? "Windows x64 stable" : "Update channel is unconfigured."), secondary: true));
         if (Updates.Configured) panel.Children.Add(Controls.Button("Check for updates…", () => _ = Dispatch("updates")));
         panel.Children.Add(Controls.Button("Save preferences", () =>
@@ -387,14 +423,19 @@ public partial class MainWindow : Window
                 { state.Status = $"Enter a valid, unique shortcut for {command.Label}."; return; }
                 shortcuts[command.Id] = input.Text;
             }
-            if (!string.IsNullOrWhiteSpace(destination.Text) &&
-                (!Path.IsPathFullyQualified(destination.Text) || !Directory.Exists(destination.Text)))
-            { state.Status = "Choose an existing absolute export folder."; return; }
+            var export = string.IsNullOrWhiteSpace(destination.Text) ? null : destination.Text.Trim();
+            var clip = string.IsNullOrWhiteSpace(clipboardFolder.Text) ? null : clipboardFolder.Text.Trim();
+            if (new[] { export, clip }.OfType<string>().Any(path => !OperationDestination.IsWritable(path)))
+            { state.Status = "Choose an existing writable export folder."; return; }
+            if (!int.TryParse(jpeg.Text, out var jpgQuality) || jpgQuality is < 1 or > 100 ||
+                !int.TryParse(webp.Text, out var webQuality) || webQuality is < 1 or > 100)
+            { state.Status = "Enter conversion quality from 1 to 100."; return; }
             var desired = preferences with
             {
                 Appearance = (string)appearance.SelectedItem, DragModifier = (string)modifier.SelectedItem,
+                DragButton = (string)dragButton.SelectedItem, JpegQuality = jpgQuality, WebPQuality = webQuality,
                 KeepHistory = history.IsChecked == true, UseTray = tray.IsChecked == true, StartAtLogin = startup.IsChecked == true,
-                ExportDirectory = string.IsNullOrWhiteSpace(destination.Text) ? null : destination.Text,
+                ExportDirectory = export, ClipboardDirectory = clip,
                 Shortcuts = shortcuts, Favorites = favorites.Select(item => item.Id).ToArray(),
                 Recent = history.IsChecked == true ? preferences.Recent : []
             };
@@ -434,7 +475,7 @@ public partial class MainWindow : Window
             state.Busy = false;
             Quit();
         }
-        finally { job = null; state.Busy = false; }
+        finally { job = null; SetBusy(false); }
     }
 
     private void RecordOutputs(string operation, IEnumerable<string> paths)
@@ -455,7 +496,7 @@ public partial class MainWindow : Window
     private void TryDesktop(Action action)
     {
         try { action(); }
-        catch (Exception error) when (error is IOException or Win32Exception or UnauthorizedAccessException)
+        catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or UnauthorizedAccessException)
         { state.Status = "Windows could not complete the action."; }
     }
 }

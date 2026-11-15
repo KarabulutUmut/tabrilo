@@ -57,13 +57,21 @@ editable SVG.
 Choose files, drop them into Home, or paste an image or file selection
 explicitly. Available actions depend on the input types. Ctrl+Space opens the
 keyboard action wheel. The default Explorer wheel gesture is Shift while
-dragging. Settings displays the current bindings and wheel preferences.
+dragging with the primary button while Tabrilo is running. Closing Home quits
+Tabrilo unless you enable the notification-area option in Settings.
 
-Choose an export folder when prompted. Result lists show the actual paths.
-Redaction exports lossless PNG. Select opaque regions on the original, then
-use Preview result before copying or exporting. To check redaction end to
-end, paste the copy into another program and inspect both the pasted result
-and the saved PNG.
+Convert opens a PNG, JPEG and WebP chooser. Compress image uses a format-aware
+preset. Extract archive, Read QR, conservative PDF compression and image
+metadata removal can start directly. Jobs shows progress, cancellation, and
+completed paths. Ordinary exports use a new name beside their sources unless
+you set an export folder. Choose a clipboard export folder in Settings or
+when first exporting pasted data. Combined exports from different directories
+ask for one destination.
+
+In Redact, drag to draw a mask, drag the mask to move it, or drag a corner to
+resize it. Use Delete to remove the selected region. Copy result processes the
+current edits. Paste into another program and compare it with the lossless PNG
+from Save copy. Development builds show their version and commit in the title.
 
 ## Distribution and updates
 

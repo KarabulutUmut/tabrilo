@@ -80,6 +80,7 @@ Run unit, integration, adversarial, native-interaction, packaging, and updater t
 Keep input-hash preservation assertions and destructive/cancellation failure tests.
 Never relabel a skipped test as passed or disable a failing gate to get green CI.
 A GUI test needs an actual interactive desktop and evidence; creating its test code is not executing it.
+Record keyboard-driven native checks and Explorer drag, visual, and external clipboard acceptance separately.
 Windows-only work cannot establish Mac usability, permissions, Finder integration, or Mac update success.
 Record exact commands, environment, exit codes, and artifact paths in the current handoff/evidence.
 Use statuses: not started, implemented/unverified, verified with evidence, blocked.

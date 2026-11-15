@@ -56,6 +56,9 @@ Shared layout: contextual title/selected files, primary preview canvas, operatio
 Use a responsive layout and sensible minimum sizes; controls must remain reachable without fixed-position clipping.
 Provide zoom-to-fit/actual-size where useful, keyboard navigation, and clear original/result comparison.
 Image edit/crop/annotation/frame/redaction share a consistent canvas model and undo/redo patterns.
+Draw, move and resize crop and mask regions on the canvas. Numeric fields provide precision.
+Draw actual annotations in the editing view and use handles and outlines for selection.
+Keep the result view separate from the editing canvas and process current edits for Copy and Save.
 PDF organization uses a page-thumbnail grid with multi-select, order, rotation, duplication, removal, and insertion.
 Long documents use virtualization/bounded thumbnails, not eager full-document rendering.
 Show source/output formats, destination, naming, dimensions, quality, and estimated/actual size where meaningful.
@@ -66,11 +69,13 @@ Do not display fabricated compression percentages or progress. Recalculate resul
 Gesture: drag real files -> hold the configured activation modifier -> wheel appears near pointer -> deliberately select an action.
 Default drag modifier: Shift; make it configurable and avoid interfering with ordinary dragging when inactive.
 Use a bounded 6-8-slot arrangement, clear labels, and intentional secondary navigation for more actions.
+Use the visible sectors as drop targets. Leave the center neutral and show the active sector immediately.
 Default wheel diameter is approximately 320 logical units; keep it within the usable monitor area.
 Users can pin/reorder favorites. Context filtering may disable irrelevant commands but must not unpredictably reshuffle favorites.
 No command executes solely because of hover. Make drop/release/click semantics explicit and consistent, with Escape to cancel.
 Provide an in-app keyboard invocation for selected files and discoverable equivalents outside the wheel.
 For quick actions, execute from the wheel with defaults and show compact progress and result feedback.
+Use a small format or preset chooser where a decision is required. Leave Home and the foreground application undisturbed.
 Open the editor only when the action needs selection, configuration, or preview.
 Wheel navigation supports arrows, Tab, Enter, and Escape. Label all actions for accessibility.
 Test edge positioning, multi-monitor coordinates, mixed DPI, focus restoration, interrupted drags, and repeat invocations.
@@ -107,6 +112,7 @@ No-code-found, unsupported input, and cancelled scan are distinct outcomes.
 Keep long operations off the UI thread. Allow cancellation and show which inputs succeeded or failed.
 Use determinate progress only when measurable; otherwise a labeled busy state with cancellation.
 Export succeeds only after the output exists and validates; show its real location with Open/Reveal actions.
+Keep job progress and outcomes in one nonmodal Jobs window. Preserve errors and partial results until dismissal.
 Provide concise actionable errors and optional sanitized technical detail, not raw stack traces in primary UI.
 Updates show availability, version, and consent; do not restart mid-operation or hide a failed signature as a network success.
 An unconfigured update channel is labeled as such. A missing feed is not equivalent to an up-to-date application.
