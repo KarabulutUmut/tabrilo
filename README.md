@@ -6,37 +6,35 @@ Tabrilo is a native desktop toolkit for working locally with images, PDFs, QR
 codes and archives. The Windows development build uses WPF and .NET 10. The
 macOS follow-up has an AppKit shell and shared command contracts.
 
-There is no public release. See [STATUS.md](STATUS.md) for tested capabilities,
-remaining Windows acceptance work and release blockers.
+Tabrilo is in development and has no approved public release. See
+[STATUS.md](STATUS.md) for verification and remaining acceptance work.
 
 ## Windows development
 
-Run from the repository root in native PowerShell 7. Use the Windows x64 .NET
-SDK pinned in [global.json](global.json). The scripts also recognize a
-project-local SDK at `.tools/dotnet/dotnet.exe`. Microsoft publishes the SDK
-binary archive and SHA-512 digest recorded in
-[shared/dependencies.json](shared/dependencies.json).
+Run from the repository root in native PowerShell 7. Install the Windows x64
+.NET SDK version in [global.json](global.json) on PATH, or extract the
+matching SDK archive into `.tools/dotnet`. The Microsoft archive URL and
+SHA-512 digest are in [shared/dependencies.json](shared/dependencies.json).
 
 ```powershell
-.\scripts\restore-tools.ps1 -Installer
+.\scripts\restore-tools.ps1 -Validation
 .\scripts\doctor.ps1
-.\scripts\build.ps1 -Configuration Debug
+.\scripts\check-manifests.ps1
 .\scripts\test.ps1 -Configuration Release
 .\scripts\run.ps1 -Configuration Release
-.\scripts\package.ps1 -Configuration Release
-.\scripts\check-docs.ps1 -SelfTest
 ```
 
-The tool restore verifies qpdf and portable NSIS archives before extraction.
-Omit `-Installer` for build and test work that only needs qpdf. Build and
-package enforce the NuGet lockfiles. The local archive copy and packages
-are cached under `.tools` and `.nuget`.
+The test script runs the documentation budget self-test and builds in locked
+NuGet mode. Tool restore verifies qpdf and actionlint before extraction. The
+archive copies and NuGet packages are cached under `.tools` and `.nuget`.
+For a build without tests, run `.\scripts\build.ps1 -Configuration Release`
+after restoring tools.
 
-The package script prints the absolute paths to the executable and the
-per-user installer under `artifacts/package/local`. The published payload
-contains the .NET Desktop runtime and bundled processing dependencies.
-`-PayloadOnly` creates a self-contained app without compiling the installer.
-The local installer is for verification pending distribution review.
+Build an unsigned local development payload with
+`.\scripts\package.ps1 -Configuration Release -PayloadOnly`. To compile
+the local installer, first run `.\scripts\restore-tools.ps1 -Installer`
+and then run packaging without `-PayloadOnly`. The scripts print absolute
+paths under `artifacts/package/local`. This output is for local verification.
 
 The test script writes synthetic fixtures and results below `artifacts/tests`.
 For an installed update test, use two installers built with `-IsolatedTest`
@@ -74,15 +72,11 @@ folder. Settings and history live in LocalAppData outside that folder.
 Applications built from the current checkout display an unconfigured update
 channel. Windows x64 updates require signed appcasts and installers.
 
-Once the release acceptance and redistribution work is complete, configure the
-protected `windows-release` environment with required reviewers and a trusted
-branch policy. Review the stable HTTPS feed and Windows trust anchor in
-`shared/contracts/windows-update.json`. The draft workflow expects the reviewed
-release enable variable, a timestamp server and the three signing secrets listed
-in the workflow. After reviewing and explicitly promoting a draft, publish its
-appcast and signature to the configured Windows x64 feed. Each Mac architecture
-has a separate feed. The repository's latest-release endpoint is not used for
-platform selection.
+GitHub Actions builds and tests Windows from a clean checkout. On main it also
+checks an unsigned self-contained payload on the runner. Desktop interaction
+and installed-updater acceptance require separate native sessions. Release
+publication is inactive. Production signing, feed configuration and binary
+redistribution still require review and owner approval.
 
 ## macOS foundation
 

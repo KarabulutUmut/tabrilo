@@ -3,9 +3,11 @@
 Downloads checksum-pinned portable build assets into this workspace.
 .PARAMETER Installer
 Also downloads the portable NSIS compiler.
+.PARAMETER Validation
+Also downloads actionlint for repository validation.
 #>
 [CmdletBinding()]
-param([switch] $Installer, [switch] $Help)
+param([switch] $Installer, [switch] $Validation, [switch] $Help)
 if ($Help) { Get-Help $PSCommandPath; exit 0 }
 . "$PSScriptRoot/common.ps1"
 
@@ -36,6 +38,9 @@ try {
     $null = New-Item -ItemType Directory -Path $tools -Force
     $pins = (Get-Content (Join-Path $TabriloRoot 'shared/dependencies.json') -Raw | ConvertFrom-Json).assets
     Expand-VerifiedAsset $pins.qpdf.url $pins.qpdf.sha256 (Join-Path $tools 'qpdf.zip') (Join-Path $tools 'qpdf')
+    if ($Validation) {
+        Expand-VerifiedAsset $pins.actionlint.url $pins.actionlint.sha256 (Join-Path $tools 'actionlint.zip') (Join-Path $tools 'actionlint')
+    }
     if ($Installer) {
         $nsisZip = Join-Path $tools 'nsis-3.13.zip'
         $origin = $pins.nsis.url

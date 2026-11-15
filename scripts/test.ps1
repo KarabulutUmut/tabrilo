@@ -21,7 +21,10 @@ try {
         if (!$OldInstaller -or !$NewInstaller) { throw 'Supply both isolated installer paths.' }
         $arguments += @('--', '--installed', (Resolve-Path -LiteralPath $OldInstaller).Path,
             (Resolve-Path -LiteralPath $NewInstaller).Path)
+    } else {
+        Write-Output 'Coverage skipped: installed update test (requires two isolated installers).'
     }
+    Write-Output 'Coverage outside this suite: interactive desktop and native macOS acceptance.'
     Invoke-TabriloDotnet $arguments
     exit 0
 } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }

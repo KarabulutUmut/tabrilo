@@ -36,7 +36,7 @@ tests/windows/              # unit/integration/adversarial/native tests
 tests/macos/                # equivalent Mac tests as implemented
 scripts/                    # doctor, build, test, run, package, documentation and release checks
 packaging/                  # installer definitions and platform packaging inputs
-.github/workflows/          # low-privilege CI and separately protected release automation
+.github/workflows/          # low-privilege Windows validation and C# CodeQL
 ```
 
 The six root narrative files are enough. Do not create a docs tree for duplicated plans or run logs.
@@ -153,13 +153,15 @@ Feed URLs remain unconfigured until hosting exists; do not present a missing fee
 Automatic checks need a visible preference/disclosure. Installation requires a safe idle point and clear user consent.
 Update settings/history survive replacement. Validate successful replacement, restart, refusal, interruption, and failure recovery.
 
-Ordinary pushes/PRs run build/test checks; they do not publish stable releases.
-Release automation builds from a reviewed commit, validates packages, signs artifacts, creates a draft release, and requires promotion approval.
-Promote the matching platform feed only when the artifact is available and validated; retain the other platform's current feed.
-No public publishing, Pages enablement, secret provisioning, or repository-setting changes during the first local build task.
-Use minimal job permissions, verified full-SHA action pins, protected signing jobs, and no PR-accessible signing secrets.
+PRs and pushes to main run Windows build/test and the manual-build C# CodeQL analysis.
+Main can also build and self-check an unsigned payload in the runner workspace.
+Future release automation requires a reviewed commit, validated packages, trusted signing and explicit promotion.
+Keep the signing script inactive in CI until the release workflow is approved.
+Use minimal job permissions, verified full-SHA action pins and no PR-accessible signing secrets.
 Never run untrusted contributor code in a privileged pull_request_target/signing job. Do not attach secrets to ordinary CI artifacts.
-Add dependency update configuration and native/runtime vulnerability checks; fixes still require tests and review.
+Dependabot checks the root solution and central NuGet versions, plus workflows.
+Review qpdf, NSIS, SDK/runtime and actionlint updates separately using their
+pinned origins, digests and license terms in the dependency inventory.
 
 ## Apple and publisher signing
 
@@ -172,7 +174,8 @@ No guarantee of frictionless ad-hoc-signed updates before a real old-to-new inst
 
 ## Validation and operations
 
-Local scripts: doctor, build, test, run, package, and check-docs, with nonzero exits on real failures.
+Local scripts cover environment checks, builds, tests, packaging, documentation
+budgets, shared manifests and workflow validation. Real failures return nonzero.
 Keep unit/integration, adversarial, native-UI, and installed-update evidence distinguishable.
 Use synthetic fixtures and independent inspectors. Track unavailable tests as skipped/blocked, never passed.
 CI should compile/test Windows. Add Mac compilation/tests only when actual Mac targets exist; never use echo-success placeholders.

@@ -68,6 +68,7 @@ Use ephemeral test keys only in an isolated test channel; no production key gene
 Inspect the working tree and remote before initializing or changing branches. Preserve pre-existing user work.
 Do not force-push, reset/delete user changes, publish releases/tags, or change repository settings unless explicitly authorized.
 Use local, reviewable commits for the first build task. Do not invent Git author addresses.
+After a one-time empty-repository bootstrap, use a pull request for changes to main.
 CI must give untrusted PR jobs no signing credentials and minimal token permissions.
 Public stable releases require tested packages and authentic signatures, not merely a successful build or checksum.
 Unconfigured signing must block trusted release publication, not block ordinary local development or non-production tests.

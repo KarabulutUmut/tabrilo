@@ -1,11 +1,21 @@
-name: Windows
+name: Windows CI
 on:
-  push:
   pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
 permissions:
   contents: read
+
+concurrency:
+  group: windows-ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  build:
+  test:
+    name: Windows build and processing tests
     runs-on: windows-2025
     timeout-minutes: 25
     steps:
@@ -15,19 +25,66 @@ jobs:
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           global-json-file: global.json
-      - name: Restore verified native tools
+      - name: Restore verified tools
+        id: tools
         shell: pwsh
-        run: ./scripts/restore-tools.ps1 -Installer
-      - name: Check and test
+        run: ./scripts/restore-tools.ps1 -Validation
+      - name: Validate manifests and workflows
+        id: manifests
+        shell: pwsh
+        run: ./scripts/check-manifests.ps1
+      - name: Check docs, build, and run processing and security tests
+        id: tests
         shell: pwsh
         run: ./scripts/test.ps1 -Configuration Release
-      - name: Build the local installer
+      - name: Record failure summary
+        if: failure()
         shell: pwsh
-        run: ./scripts/package.ps1 -Configuration Release
+        env:
+          TOOL_RESTORE: ${{ steps.tools.outcome }}
+          MANIFEST_CHECK: ${{ steps.manifests.outcome }}
+          BUILD_AND_TEST: ${{ steps.tests.outcome }}
+        run: |
+          @(
+            "commit=$env:GITHUB_SHA"
+            "tool-restore=$env:TOOL_RESTORE"
+            "manifest-check=$env:MANIFEST_CHECK"
+            "build-and-test=$env:BUILD_AND_TEST"
+          ) | Set-Content -LiteralPath "$env:RUNNER_TEMP/tabrilo-test-status.txt"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        if: always()
+        if: failure()
         with:
-          name: windows-test-results
-          path: artifacts/tests/
-          if-no-files-found: ignore
-          retention-days: 5
+          name: windows-test-failure
+          path: ${{ runner.temp }}/tabrilo-test-status.txt
+          retention-days: 14
+          if-no-files-found: error
+
+  package:
+    name: Unsigned Windows development package self-check
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+      - name: Restore verified tools
+        shell: pwsh
+        run: ./scripts/restore-tools.ps1
+      - name: Build and check the unsigned self-contained payload
+        shell: pwsh
+        run: |
+          ./scripts/package.ps1 -Configuration Release -PayloadOnly
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $app = Get-ChildItem -LiteralPath 'artifacts/package/local' -Recurse -Filter 'Tabrilo.exe' -File
+          if (@($app).Count -ne 1) { throw 'Expected one packaged application.' }
+          & (Join-Path $app.DirectoryName 'tools/qpdf/qpdf.exe') --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $process = Start-Process -FilePath $app.FullName -ArgumentList '--self-check' -Wait -PassThru -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+          'Unsigned development/test payload passed its self-check. Desktop UI and installation require separate tests.' >> $env:GITHUB_STEP_SUMMARY
+          # Keep the payload on the runner pending redistribution review.

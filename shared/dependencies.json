@@ -2,6 +2,13 @@
   "version": 1,
   "platform": "windows-x64",
   "assets": {
+    "actionlint": {
+      "version": "1.7.12",
+      "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_windows_amd64.zip",
+      "sha256": "6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9",
+      "purpose": "Development-only GitHub Actions workflow validation",
+      "license": "MIT"
+    },
     "qpdf": {
       "version": "12.4.2",
       "url": "https://github.com/qpdf/qpdf/releases/download/v12.4.2/qpdf-12.4.2-msvc64.zip",

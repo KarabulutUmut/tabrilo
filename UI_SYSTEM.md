@@ -70,6 +70,8 @@ Default wheel diameter is approximately 320 logical units; keep it within the us
 Users can pin/reorder favorites. Context filtering may disable irrelevant commands but must not unpredictably reshuffle favorites.
 No command executes solely because of hover. Make drop/release/click semantics explicit and consistent, with Escape to cancel.
 Provide an in-app keyboard invocation for selected files and discoverable equivalents outside the wheel.
+For quick actions, execute from the wheel with defaults and show compact progress and result feedback.
+Open the editor only when the action needs selection, configuration, or preview.
 Wheel navigation supports arrows, Tab, Enter, and Escape. Label all actions for accessibility.
 Test edge positioning, multi-monitor coordinates, mixed DPI, focus restoration, interrupted drags, and repeat invocations.
 Native drag-and-drop payload acquisition is required; no clipboard polling, process injection, or fake inside-only global behavior.

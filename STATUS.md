@@ -2,15 +2,16 @@
 
 Updated 2026-11-15. Windows development build. Stable acceptance remains open.
 
-## Environment and Git
+## Local environment and Git
 
 Windows 10 Home 22H2 x64, build 19045.6466, PowerShell 7.6.9 and project-local
 .NET SDK 10.0.404. WPF and Windows.Data.Pdf ran natively. This is evidence for
 this host. Windows 11 and clean supported installations still need validation.
 
-Local Git is initialized on unborn branch `codex/windows-v1`. Origin returned
-no refs. Neither the sandbox nor desktop account has a configured Git author.
-There are no local commits or remote publications. The files are in the working tree.
+The local `codex/windows-v1` branch preserves the reviewed development
+checkpoint. The public origin is `KarabulutUmut/tabrilo`. This setup began
+with an empty remote. Bootstrap puts the development source and workflows
+on main once. Follow-up changes use pull requests.
 
 ## Implementation and evidence
 
@@ -24,10 +25,10 @@ There are no local commits or remote publications. The files are in the working 
 | Explorer gesture and visual acceptance | Blocked | Desktop capture returned `FrameArrived timed out`; coordinate input geometry unavailable |
 | Windows installer and updater | Verified with evidence | Per-user 0.1.0 → 0.2.0 using strict NetSparkle verification and ephemeral keys; uninstall preserved local state and export |
 | Shared contracts and Mac shell | Implemented/unverified | AppKit source and bundle script consume the shared catalog; Mac build/session unavailable |
-| GitHub Actions and draft release | Implemented/unverified | Local workflow definitions only |
+| GitHub Actions | Implemented/unverified | Windows build/test, main-only package self-check, and C# CodeQL workflows |
 | Production distribution | Blocked | Acceptance, binary redistribution review, publisher certificate, approved update key and feed required |
 
-## Evidence and launch
+## Reported local evidence from the Windows build
 
 Run from the checkout with native PowerShell 7.
 
@@ -47,6 +48,10 @@ Run from the checkout with native PowerShell 7.
 
 ## Open Windows acceptance
 
+- The owner reports unsatisfactory visual quality and too many transitions into
+  the full application. Acceptance remains open. Quick operations should run
+  from the contextual wheel with sensible defaults and compact result feedback.
+  Open editors for selection, configuration, or preview.
 - Verify actual external Explorer OLE drag/drop, normal inactive drag, keyboard
   navigation, clipboard interoperability, tray/startup, mixed DPI and light/dark screenshots.
 - Image region selection, adjustment undo and PDF thumbnail grids compile.
@@ -57,13 +62,25 @@ Run from the checkout with native PowerShell 7.
 - The unsigned release gate returned exit 1 with the production environment disabled.
 - Expand the archive race, on-disk reparse, malformed-format, solid RAR,
   multi-image HEIF and resource-limit cases. Verify packaged offline runs on Windows 11.
-- The draft pipeline remains unexercised. Review bundled Magick.NET LGPL
-  corresponding source/relinking and qpdf native redistributable terms before distribution.
+- Review bundled Magick.NET LGPL corresponding source/relinking and qpdf
+  native redistributable terms before distribution. The production feed remains unconfigured.
+
+## GitHub verification
+
+On the Windows host above, `scripts/restore-tools.ps1 -Validation` and
+`scripts/check-manifests.ps1` exited 0. `scripts/test.ps1 -Configuration Release`
+exited 0 with 11/11 groups. `scripts/package.ps1 -Configuration Release -PayloadOnly`
+and the payload's `--self-check` exited 0. Current logs are in
+`artifacts/verification/github-foundation-*.log`.
+
+See [Actions](https://github.com/KarabulutUmut/tabrilo/actions) for remote evidence.
+Desktop interaction and installed updates are outside the hosted suite.
+Unsigned package output stays on the runner pending redistribution review.
 
 ## Next actions
 
-1. Complete external-drag, editor, clipboard and native visual acceptance on a physical or capturable desktop.
-2. Extend PDF structure, format and filesystem safety fixtures.
-3. Exercise installer recovery during interrupted installation and rerun clean-profile/offline validation.
-4. Review redistribution conditions and configure production signing and hosting only after owner approval.
+1. Verify main CI, CodeQL, Dependabot jobs and the main-branch rules after bootstrap.
+2. Complete wheel, editor, clipboard and visual acceptance on a physical or capturable desktop.
+3. Extend PDF, format and filesystem safety fixtures. Validate installer interruption and clean Windows 11 offline use.
+4. Review redistribution and production signing and hosting after owner approval.
 5. Build AppKit on a Mac, implement operations and Finder integration using the shared contracts, then integrate Sparkle 2 and validate Mac installation and signed updates.

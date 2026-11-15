@@ -114,6 +114,8 @@ Home, Recent results, Settings, and focused contextual editors; no dashboard clu
 Accept file picker, normal drag/drop, and explicit clipboard file/image paste. Preserve ordinary text-field paste.
 A native global drag gesture opens a contextual wheel near the pointer; keyboard invocation works for selected app files too.
 Provide 6-8 visible actions, stable user-pinned positions, a deliberate More path, explicit selection, and Escape cancellation.
+Quick wheel actions should execute with sensible defaults and report results in a compact surface.
+Open a focused editor when an operation needs selection, configuration, or preview.
 Ordinary Explorer/Finder dragging must remain unaffected when the gesture is not activated.
 Mixed selections must show valid common operations or clear unsupported-selection explanations.
 Use configurable semantic shortcuts with Ctrl/Command conventions, conflict detection, and normal editing preservation.
