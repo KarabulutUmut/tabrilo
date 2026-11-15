@@ -25,6 +25,11 @@
         "resolved": "0.9.4",
         "contentHash": "bGUdkGMW/CvKFm6AMsufYJB9XpoK0TlRfIJ5yANZKhFUTSJe2gf6EO32ZgF9rT+S4h2ETdWHN/33weOnVFjWDQ=="
       },
+      "System.Formats.Asn1": {
+        "type": "Transitive",
+        "resolved": "11.0.0",
+        "contentHash": "RSIrJ7D8gEHykZWTfS/r9tz/G5YpxIQAaFFXSLLHhVaRed+/26KvqaXvUtqqMJMlNjubAcMvf3UJ+E6ABT8AWw=="
+      },
       "Tabrilo": {
         "type": "Project",
         "dependencies": {
@@ -42,7 +47,7 @@
           "PDFsharp": "[6.2.4, 6.2.4]",
           "SharpCompress": "[0.50.9, 0.50.9]",
           "System.IO.Hashing": "[10.0.15, 10.0.15]",
-          "System.Security.Cryptography.Pkcs": "[10.0.15, 10.0.15]",
+          "System.Security.Cryptography.Pkcs": "[11.0.0, 11.0.0]",
           "Tabrilo.Core": "[1.0.0, )",
           "ZXing.Net": "[0.16.11, 0.16.11]"
         }
@@ -88,9 +93,12 @@
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "CentralTransitive",
-        "requested": "[10.0.15, 10.0.15]",
-        "resolved": "10.0.15",
-        "contentHash": "4jEv/lXDuQkh60lPU3hlwASErXdv1ZMKmsxVuBfZWiVKT5Q2QGo58kTa6rN519+PU+m4Hsj1m3yT8fN+Xw0XZw=="
+        "requested": "[11.0.0, 11.0.0]",
+        "resolved": "11.0.0",
+        "contentHash": "G8mTjSWrwaPJ2bJRbKuI4ZqdKUYcANK0KtNH3s8/va3nXiF/Pk/yhv2R17rv5PBKJO5+ZXDyhTnZXh0W9v0J8w==",
+        "dependencies": {
+          "System.Formats.Asn1": "11.0.0"
+        }
       },
       "ZXing.Net": {
         "type": "CentralTransitive",
