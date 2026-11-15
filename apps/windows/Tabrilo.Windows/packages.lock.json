@@ -43,7 +43,7 @@
           "Magick.NET-Q8-x64": "[15.0.0, 15.0.0]",
           "PDFsharp": "[6.2.4, 6.2.4]",
           "SharpCompress": "[0.50.9, 0.50.9]",
-          "System.IO.Hashing": "[10.0.15, 10.0.15]",
+          "System.IO.Hashing": "[11.0.0, 11.0.0]",
           "System.Security.Cryptography.Pkcs": "[10.0.15, 10.0.15]",
           "Tabrilo.Core": "[1.0.0, )",
           "ZXing.Net": "[0.16.11, 0.16.11]"
@@ -75,9 +75,9 @@
       },
       "System.IO.Hashing": {
         "type": "CentralTransitive",
-        "requested": "[10.0.15, 10.0.15]",
-        "resolved": "10.0.15",
-        "contentHash": "8dyz8adVemyDILwoEFTCq2NsB6XgqOgVHbnv0XgnttQac76XUR3S5L2qcIkJJqOw97mjQttCTWccyk4DKtfm3Q=="
+        "requested": "[11.0.0, 11.0.0]",
+        "resolved": "11.0.0",
+        "contentHash": "U+Bv2qCYt6eONi+arSP0QIp4uTO6os6uceBsqiAwruZ+Wo2HrRhO/0tj38M9URJtS+4DhAtT3ka2TGNFYsnhyQ=="
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "CentralTransitive",
