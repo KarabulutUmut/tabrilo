@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>Tabrilo</AssemblyName>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Tabrilo.ico</ApplicationIcon>
+    <Version>0.1.0</Version>
+    <TabriloInstallIdentity Condition="'$(TabriloInstallIdentity)' == ''">Tabrilo</TabriloInstallIdentity>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Tabrilo.Processing/Tabrilo.Processing.csproj" />
+    <PackageReference Include="NetSparkleUpdater.SparkleUpdater" />
+    <EmbeddedResource Include="../../../shared/design/tokens.json" LogicalName="Tabrilo.Tokens.json" />
+    <EmbeddedResource Include="../../../shared/contracts/windows-update.json" LogicalName="Tabrilo.Updates.json" />
+    <InternalsVisibleTo Include="Tabrilo.Tests" />
+    <AssemblyMetadata Include="TabriloInstallIdentity" Value="$(TabriloInstallIdentity)" />
+    <Content Include="../../../.tools/qpdf/qpdf-12.4.2-msvc64/bin/qpdf.exe;../../../.tools/qpdf/qpdf-12.4.2-msvc64/bin/*.dll">
+      <Link>tools/qpdf/%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

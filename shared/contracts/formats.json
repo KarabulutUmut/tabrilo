@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "input": {
+    "image": [
+      "jpeg",
+      "jpg",
+      "png",
+      "webp",
+      "bmp",
+      "tiff",
+      "tif",
+      "heic",
+      "heif"
+    ],
+    "pdf": [
+      "pdf"
+    ],
+    "archive": [
+      "zip",
+      "tar",
+      "gz",
+      "tgz",
+      "rar"
+    ]
+  },
+  "output": {
+    "image": [
+      "png",
+      "jpg",
+      "webp"
+    ],
+    "redacted": [
+      "png"
+    ],
+    "pdf": [
+      "pdf"
+    ],
+    "archive": "new-directory"
+  },
+  "policies": {
+    "imageFrames": "single-or-explicit-rejection",
+    "color": "oriented-srgb",
+    "jpegAlpha": "white-matte",
+    "pdfRewrite": "new-document",
+    "updateChannels": [
+      "windows-x64/stable",
+      "macos-arm64/stable",
+      "macos-x64/stable"
+    ],
+    "outputCollision": "numeric-suffix"
+  }
+}

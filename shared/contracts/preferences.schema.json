@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "version"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "appearance": {
+      "enum": [
+        "System",
+        "Dark",
+        "Light"
+      ]
+    },
+    "keepHistory": {
+      "type": "boolean"
+    },
+    "useTray": {
+      "type": "boolean"
+    },
+    "startAtLogin": {
+      "type": "boolean"
+    },
+    "dragModifier": {
+      "enum": [
+        "Shift",
+        "Ctrl",
+        "Alt",
+        "Off"
+      ]
+    },
+    "exportDirectory": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "shortcuts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "favorites": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 6,
+      "uniqueItems": true
+    },
+    "recent": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "required": [
+          "operation",
+          "path",
+          "created"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}

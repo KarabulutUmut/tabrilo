@@ -1,0 +1,242 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "id": "open",
+      "label": "Open files",
+      "scope": "app",
+      "shortcut": "Primary+O",
+      "kinds": []
+    },
+    {
+      "id": "paste",
+      "label": "Paste files or image",
+      "scope": "app",
+      "shortcut": "Primary+V",
+      "kinds": []
+    },
+    {
+      "id": "home",
+      "label": "Home",
+      "scope": "app",
+      "shortcut": "Primary+1",
+      "kinds": []
+    },
+    {
+      "id": "recent",
+      "label": "Recent results",
+      "scope": "app",
+      "shortcut": "Primary+2",
+      "kinds": []
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "scope": "app",
+      "shortcut": "Primary+3",
+      "kinds": []
+    },
+    {
+      "id": "wheel",
+      "label": "Actions wheel",
+      "scope": "app",
+      "shortcut": "Primary+Space",
+      "kinds": []
+    },
+    {
+      "id": "undo",
+      "label": "Undo",
+      "scope": "editor",
+      "shortcut": "Primary+Z",
+      "kinds": []
+    },
+    {
+      "id": "redo",
+      "label": "Redo",
+      "scope": "editor",
+      "shortcut": "Primary+Y",
+      "kinds": []
+    },
+    {
+      "id": "image.convert",
+      "label": "Convert",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image"
+      ]
+    },
+    {
+      "id": "image.compress",
+      "label": "Compress image",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image"
+      ]
+    },
+    {
+      "id": "image.info",
+      "label": "Image information",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image"
+      ]
+    },
+    {
+      "id": "image.metadata",
+      "label": "Remove personal metadata",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image"
+      ]
+    },
+    {
+      "id": "image.edit",
+      "label": "Edit image",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image"
+      ]
+    },
+    {
+      "id": "image.annotate",
+      "label": "Annotate",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image"
+      ]
+    },
+    {
+      "id": "image.frame",
+      "label": "Frame",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image"
+      ]
+    },
+    {
+      "id": "image.crop",
+      "label": "Crop",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image"
+      ]
+    },
+    {
+      "id": "image.pdf",
+      "label": "Images to PDF",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image"
+      ]
+    },
+    {
+      "id": "image.redact",
+      "label": "Redact",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image"
+      ]
+    },
+    {
+      "id": "image.share",
+      "label": "Share copy",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image"
+      ]
+    },
+    {
+      "id": "pdf.info",
+      "label": "PDF information",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "pdf"
+      ]
+    },
+    {
+      "id": "pdf.compress",
+      "label": "Compress PDF",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "pdf"
+      ]
+    },
+    {
+      "id": "pdf.metadata",
+      "label": "PDF properties",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "pdf"
+      ]
+    },
+    {
+      "id": "pdf.split",
+      "label": "Split PDF",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "pdf"
+      ]
+    },
+    {
+      "id": "pdf.organize",
+      "label": "Organize pages",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "pdf"
+      ]
+    },
+    {
+      "id": "pdf.merge",
+      "label": "Merge PDFs",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "pdf"
+      ]
+    },
+    {
+      "id": "pdf.images",
+      "label": "Export pages as images",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "pdf"
+      ]
+    },
+    {
+      "id": "qr.read",
+      "label": "Read QR",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image",
+        "pdf"
+      ]
+    },
+    {
+      "id": "archive.extract",
+      "label": "Extract archive",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "archive"
+      ]
+    }
+  ]
+}

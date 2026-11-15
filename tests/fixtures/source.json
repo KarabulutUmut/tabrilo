@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "color.heic": {
+    "origin": "https://raw.githubusercontent.com/strukturag/libheif/v1.23.7/tests/data/rainbow-451x461.heic",
+    "sha256": "4b2ce727f093944975f143ba2b39c4c64511b766d94552f8d51a755916e7f983",
+    "expectedDimensions": [
+      451,
+      461
+    ],
+    "notices": "libheif-COPYING.txt"
+  },
+  "entry.rar": {
+    "origin": "https://raw.githubusercontent.com/libarchive/libarchive/v3.8.11/libarchive/test/test_read_format_rar5_stored.rar.uu",
+    "encoding": "uudecoded upstream fixture",
+    "sha256": "35d75e315d164d2e329afc28f7d844f013271b4fcffd4ddd78efcdd114a383a7",
+    "expectedEntry": "helloworld.txt",
+    "notices": "libarchive-COPYING.txt"
+  }
+}

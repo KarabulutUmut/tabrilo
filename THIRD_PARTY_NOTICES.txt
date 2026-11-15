@@ -1,0 +1,24 @@
+Tabrilo Windows x64 third-party components
+
+The generated package's licenses directory includes upstream terms selected from
+the locked NuGet packages, the qpdf release, .NET runtime notices and the NSIS
+COPYING file. Exact versions and asset SHA-256 digests are in shared/dependencies.json.
+NuGet package content hashes and transitive dependencies are in packages.lock.json.
+
+Magick.NET 15.0.0, copyright Dirk Lemstra. Apache-2.0 wrapper.
+The upstream Notice.txt supplies the bundled ImageMagick and native codec terms.
+The vendor's native builds are tracked at https://github.com/dlemstra/Magick.Native.
+The native bundle includes LGPL components. Review corresponding source and
+relinking requirements before redistribution outside local development.
+
+PDFsharp 6.2.4, copyright empira Software GmbH, MIT. It includes the public-domain
+BigGustave PNG reader. SharpCompress 0.50.9, copyright Adam Hathcock, MIT.
+ZXing.Net 0.16.11 and ZXing are licensed under Apache-2.0.
+NetSparkleUpdater 3.1.0, MIT, uses Chaos.NaCl. See the upstream NaCl license.
+qpdf 12.4.2, copyright Jay Berkenbilt and Manfred Holger, Apache-2.0.
+The vendor's Windows distribution includes Microsoft C/C++ runtime binaries.
+NSIS 3.13 installer code uses the licenses supplied in the NSIS COPYING file.
+The published self-contained .NET Desktop 10.0.15 runtime includes Microsoft and
+third-party components. See the upstream runtime license and third-party notices.
+Windows.Data.Pdf is a system component supplied by Windows.
+

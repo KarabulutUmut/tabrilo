@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "platform": "windows-x64",
+  "assets": {
+    "qpdf": {
+      "version": "12.4.2",
+      "url": "https://github.com/qpdf/qpdf/releases/download/v12.4.2/qpdf-12.4.2-msvc64.zip",
+      "sha256": "db87077e683630c1217e0e8f9a20a9749d952ab676e881c3689187763a5de25d",
+      "purpose": "PDF full rewrite, structure inspection and optimization",
+      "license": "Apache-2.0 with bundled native notices and Microsoft runtime terms"
+    },
+    "nsis": {
+      "version": "3.13",
+      "url": "https://sourceforge.net/projects/nsis/files/NSIS%203/3.13/nsis-3.13.zip/download",
+      "sha256": "ba63dffc4410ee89193e1cb5a41989991bd77c61068da17e3156d136b7b0b3d8",
+      "purpose": "Build-time per-user installer compiler and installer stubs",
+      "license": "zlib and component licenses in COPYING"
+    },
+    "sdk": {
+      "version": "10.0.404",
+      "runtime": "10.0.15",
+      "url": "https://dotnetcli.blob.core.windows.net/dotnet/Sdk/10.0.404/dotnet-sdk-10.0.404-win-x64.zip",
+      "sha512": "330ddd2665b43cd2e428216a0d8ea1ac7bb19b5434fdc530e62010dc3b52823a620bf95489d628e1ed6f5122401793ee4887cca4a019122361a1231497f632ee",
+      "purpose": "Native .NET and WPF build and self-contained runtime",
+      "license": "Bundled SDK and runtime license and notices"
+    }
+  },
+  "nuget": [
+    {
+      "id": "Magick.NET-Q8-x64",
+      "version": "15.0.0",
+      "license": "Apache-2.0 wrapper; native component licenses in package Notice.txt including LGPL",
+      "purpose": "Raster codecs, transforms and color",
+      "source": "https://github.com/dlemstra/Magick.NET"
+    },
+    {
+      "id": "PDFsharp",
+      "version": "6.2.4",
+      "license": "MIT",
+      "purpose": "Build PDFs from normalized images",
+      "source": "https://github.com/empira/PDFsharp/tree/v6.2.4"
+    },
+    {
+      "id": "SharpCompress",
+      "version": "0.50.9",
+      "license": "MIT",
+      "purpose": "RAR decode",
+      "source": "https://github.com/adamhathcock/sharpcompress"
+    },
+    {
+      "id": "ZXing.Net",
+      "version": "0.16.11",
+      "license": "Apache-2.0",
+      "purpose": "Local QR recognition",
+      "source": "https://github.com/micjahn/ZXing.Net"
+    },
+    {
+      "id": "NetSparkleUpdater.SparkleUpdater",
+      "version": "3.1.0",
+      "license": "MIT",
+      "purpose": "Strict Ed25519 appcast and package verification",
+      "source": "https://github.com/NetSparkleUpdater/NetSparkle"
+    },
+    {
+      "id": "System.IO.Hashing",
+      "version": "10.0.15",
+      "license": "MIT",
+      "purpose": "Streamed ZIP CRC-32 integrity checks",
+      "source": "https://github.com/dotnet/runtime"
+    },
+    {
+      "id": "System.Security.Cryptography.Pkcs",
+      "version": "10.0.15",
+      "license": "MIT",
+      "purpose": "Explicit patched PDFsharp dependency",
+      "source": "https://github.com/dotnet/runtime"
+    }
+  ],
+  "integrity": "NuGet content digests including transitive packages are recorded in packages.lock.json.",
+  "distributionReview": "Review equivalent corresponding code and relinking materials for LGPL libraries in the native Magick.NET bundle, plus qpdf's bundled Microsoft redistributable terms, before public distribution."
+}

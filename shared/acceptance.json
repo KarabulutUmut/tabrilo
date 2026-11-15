@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "criteria": {
+    "image.convert": [
+      "real required import formats",
+      "independent JPEG/PNG/WebP decode",
+      "alpha and single-frame policy",
+      "input hashes"
+    ],
+    "image.compress": [
+      "lossless and quality modes",
+      "report unchanged/larger outputs",
+      "actual byte comparison"
+    ],
+    "image.info": [
+      "orientation and personal tag reporting"
+    ],
+    "image.metadata": [
+      "independent check of EXIF/XMP/IPTC and profile stripping"
+    ],
+    "image.edit": [
+      "orientation, transforms, comparison and undo/redo"
+    ],
+    "image.annotate": [
+      "draw and manipulate each mark type"
+    ],
+    "image.frame": [
+      "solid/gradient, padding, radius, shadow"
+    ],
+    "image.crop": [
+      "fit, numeric selection, keyboard and DPI transforms"
+    ],
+    "image.pdf": [
+      "geometry, margins, page order and alpha"
+    ],
+    "image.redact": [
+      "opaque output pixels, clean PNG, input hash and external paste"
+    ],
+    "image.share": [
+      "combined edits and masks, clipboard and saved bytes from same result"
+    ],
+    "pdf.info": [
+      "PDF properties, protected and signed states"
+    ],
+    "pdf.metadata": [
+      "Info/XMP removed and incremental revision discarded"
+    ],
+    "pdf.compress": [
+      "preserve vector, text, geometry, links and forms or block",
+      "lossy labeled"
+    ],
+    "pdf.split": [
+      "ranges and grouped pages"
+    ],
+    "pdf.organize": [
+      "rotate, reorder, duplicate, insert, remove, undo and previews"
+    ],
+    "pdf.merge": [
+      "preserved geometry and selected ordering"
+    ],
+    "pdf.images": [
+      "page and DPI selection, real native render"
+    ],
+    "qr.read": [
+      "multiple positions, text preservation, page attribution and explicit confirmation"
+    ],
+    "archive.extract": [
+      "positive ZIP, TAR, GZIP, TGZ and RAR",
+      "reparse, traversal, normalized collision rejection",
+      "streamed limits, input hashes and failure cleanup"
+    ],
+    "desktop": [
+      "real Explorer/OLE source",
+      "inactive drag and text editing unaffected",
+      "screen readers, DPI, clipboard, shortcuts and appearance"
+    ],
+    "package": [
+      "clean per-user install",
+      "offline app execution",
+      "uninstall preserves settings and exports"
+    ],
+    "updates": [
+      "strict signed feed and installer",
+      "interrupted payload, older version and signature refusal",
+      "installed old-to-new update"
+    ]
+  }
+}

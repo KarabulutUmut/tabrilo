@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "version",
+    "commands"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "scope",
+          "shortcut",
+          "kinds"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z]+(\\.[a-z]+)?$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "enum": [
+              "app",
+              "editor",
+              "global",
+              "operation"
+            ]
+          },
+          "shortcut": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kinds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "image",
+                "pdf",
+                "archive"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

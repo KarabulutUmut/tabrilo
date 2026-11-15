@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Windows/">
+    <Project Path="apps/windows/Tabrilo.Core/Tabrilo.Core.csproj" />
+    <Project Path="apps/windows/Tabrilo.Processing/Tabrilo.Processing.csproj" />
+    <Project Path="apps/windows/Tabrilo.Windows/Tabrilo.Windows.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/windows/Tabrilo.Tests/Tabrilo.Tests.csproj" />
+  </Folder>
+</Solution>

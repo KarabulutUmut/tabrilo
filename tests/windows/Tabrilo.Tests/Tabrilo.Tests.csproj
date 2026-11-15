@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../apps/windows/Tabrilo.Processing/Tabrilo.Processing.csproj" />
+    <ProjectReference Include="../../../apps/windows/Tabrilo.Windows/Tabrilo.Windows.csproj" />
+  </ItemGroup>
+</Project>
