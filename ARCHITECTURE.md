@@ -172,6 +172,25 @@ Document truthful first-launch limitations after testing on a Mac; managed devic
 Apple/Windows publisher signing and cryptographic updater authenticity are separate concerns.
 No guarantee of frictionless ad-hoc-signed updates before a real old-to-new installed Mac test.
 
+## Windows invocation and jobs
+
+The command coordinator snapshots semantic ID, input paths and clipboard origin,
+invocation origin, options, destination policy, and cancellation on dispatch.
+Home, the keyboard wheel, and Explorer use the same coordinator. Only explicit
+choices, editor interactions, and OS clipboard work use the WPF dispatcher.
+The quick operation implementations and image processing run on background tasks.
+
+One nonmodal Jobs window presents progress and preserves job outcomes in memory
+until dismissal or exit. Closing the window hides it and keeps active work
+reachable from Home or the opt-in tray. History persists published paths only.
+Input editors own cancellable, debounced result previews. A newer request
+cancels older work, and Save and Copy consume current validated output.
+
+Separate exports default to their source directories. Combined output across
+different source folders and first-use clipboard exports require an explicit
+destination. A configured destination is checked before the job writes.
+Destination checks do not replace validation or atomic publication in processing.
+
 ## Validation and operations
 
 Local scripts cover environment checks, builds, tests, packaging, documentation

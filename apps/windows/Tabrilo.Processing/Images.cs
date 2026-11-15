@@ -24,6 +24,7 @@ public sealed record ImageOptions(ImageFormat Format, int Quality = 85, bool Los
 public sealed record ImageInfo(uint Width, uint Height, string Format, long Size, string Orientation, string ColorSpace,
     string[] ProfileNames, IReadOnlyDictionary<string, string> Properties);
 public sealed record ProcessedImage(byte[] Bytes, ImageFormat Format, uint Width, uint Height);
+public sealed record ImageCanvasPreview(byte[] Png, uint Width, uint Height);
 
 public static class Images
 {
@@ -105,6 +106,40 @@ public static class Images
     {
         using var image = await ReadAsync(path, token);
         return Process(image, options, token);
+    }
+
+    public static async Task<ImageCanvasPreview> ReadEditorPreviewAsync(string path, CancellationToken token)
+    {
+        using var image = await ReadAsync(path, token);
+        Normalize(image);
+        var (width, height) = (image.Width, image.Height);
+        return new(CanvasPng(image, 1600, token), width, height);
+    }
+
+    internal static MagickFormat EncodedFormat(ImageFormat format) => format switch
+    {
+        ImageFormat.Png => MagickFormat.Png,
+        ImageFormat.Jpeg => MagickFormat.Jpeg,
+        ImageFormat.WebP => MagickFormat.WebP,
+        _ => throw new NotSupportedException("Output format is unsupported.")
+    };
+
+    public static byte[] DisplayPng(ProcessedImage processed, bool fullSize, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (fullSize && processed.Format == ImageFormat.Png) return processed.Bytes;
+        using var image = new MagickImage(processed.Bytes, EncodedFormat(processed.Format));
+        return CanvasPng(image, fullSize ? 0U : 1600U, token);
+    }
+
+    private static byte[] CanvasPng(IMagickImage<byte> image, uint maxEdge, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (maxEdge > 0 && Math.Max(image.Width, image.Height) > maxEdge) image.Resize(maxEdge, maxEdge);
+        image.Settings.SetDefine(MagickFormat.Png, "compression-level", "1");
+        var bytes = image.ToByteArray(MagickFormat.Png32);
+        token.ThrowIfCancellationRequested();
+        return bytes;
     }
 
     internal static ProcessedImage ProcessPngStream(Stream stream, ImageFormat format, CancellationToken token)
@@ -287,13 +322,7 @@ public static class Images
     {
         token.ThrowIfCancellationRequested();
         image.Strip();
-        var format = options.Format switch
-        {
-            ImageFormat.Png => MagickFormat.Png,
-            ImageFormat.Jpeg => MagickFormat.Jpeg,
-            ImageFormat.WebP => MagickFormat.WebP,
-            _ => throw new NotSupportedException("Output format is unsupported.")
-        };
+        var format = EncodedFormat(options.Format);
         if (format == MagickFormat.Jpeg)
         {
             image.ColorAlpha(MagickColors.White);

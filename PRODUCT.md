@@ -115,6 +115,8 @@ Accept file picker, normal drag/drop, and explicit clipboard file/image paste. P
 A native global drag gesture opens a contextual wheel near the pointer; keyboard invocation works for selected app files too.
 Provide 6-8 visible actions, stable user-pinned positions, a deliberate More path, explicit selection, and Escape cancellation.
 Quick wheel actions should execute with sensible defaults and report results in a compact surface.
+Convert offers a compact format choice. Image compression offers format-aware presets and advanced options.
+Archive extraction, QR reading, conservative PDF compression and image metadata removal use direct execution.
 Open a focused editor when an operation needs selection, configuration, or preview.
 Ordinary Explorer/Finder dragging must remain unaffected when the gesture is not activated.
 Mixed selections must show valid common operations or clear unsupported-selection explanations.
@@ -127,6 +129,9 @@ No persistent unredacted thumbnails. Missing files are shown without deleting or
 ## Output and job behavior
 
 Originals remain unchanged by default. Write, validate, then publish new outputs with collision-safe names.
+Default separate exports to each source directory. Let a configured export directory override this.
+Clipboard exports require an explicit export folder. Combined exports from different folders require one chosen destination.
+Offer an intentional destination override and ask for a fallback when the original destination cannot be used.
 Use cancellable bounded jobs, real progress where measurable, and indeterminate progress otherwise.
 Show failures and partial batch outcomes accurately; never claim batch-wide success when items failed.
 Let users preview, save, copy processed images, reveal outputs, and retry appropriate failures.

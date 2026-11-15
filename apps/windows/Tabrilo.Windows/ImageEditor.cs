@@ -20,13 +20,16 @@ internal sealed class ImageEditor : Window
     private sealed record Selection(PixelRect? Crop, PixelRect[] Redactions, ImageMark[] Marks);
     private sealed record RegionRow(string Kind, int Index, string Label);
     private sealed record EditState(Selection Selection, object?[] Settings);
+    private sealed record Gesture(RegionRow Row, PixelRect Bounds, ImagePoint Start, int XEdge, int YEdge);
+    private Gesture? gesture;
+    private ImagePoint? gestureEnd;
     private readonly Stack<EditState> undo = new();
     private readonly Stack<EditState> redo = new();
     private Selection selection = new(null, [], []);
     private EditState? committed;
     private bool restoring;
     private Control[] editFields = [];
-    private readonly ProcessedImage original;
+    private readonly ImageCanvasPreview original;
     private readonly BitmapSource originalBitmap;
     private readonly string path;
     private readonly string command;
@@ -61,15 +64,24 @@ internal sealed class ImageEditor : Window
     private readonly Button render;
     private readonly Button export;
     private readonly Func<KeyEventArgs, string, bool> shortcut;
+    private readonly System.Windows.Threading.DispatcherTimer previewDelay = new() { Interval = TimeSpan.FromMilliseconds(280) };
+    private readonly SemaphoreSlim encoder = new(1, 1);
     private CancellationTokenSource? rendering;
+    private readonly CancellationToken operation;
     private bool showingOriginal = true;
+    private bool finishing;
+    private bool closed;
+    private bool actualSize;
+    private readonly Action<bool> zoomTo;
+    private bool resultRequested;
     private ProcessedImage? processed;
     private ImageOptions? processedOptions;
     public ImageOptions? OutputOptions { get; private set; }
     public ProcessedImage? VerifiedPreview { get; private set; }
+    public bool ChangeDestination { get; private set; }
 
-    public ImageEditor(Window owner, string label, string command, string path, ProcessedImage original,
-        int count, Func<KeyEventArgs, string, bool> shortcut)
+    public ImageEditor(Window? owner, string label, string command, string path, ImageCanvasPreview original,
+        Func<KeyEventArgs, string, bool> shortcut, CancellationToken cancellationToken)
     {
         Owner = owner;
         Title = label + " – Tabrilo";
@@ -77,22 +89,22 @@ internal sealed class ImageEditor : Window
         SetResourceReference(ForegroundProperty, "Text");
         FontFamily = new FontFamily("Segoe UI");
         FontSize = 14;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Width = 940;
-        Height = 690;
+        WindowStartupLocation = owner is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner;
+        Width = 860;
+        Height = 625;
         MinWidth = 590;
         MinHeight = 470;
         this.path = path;
         this.command = command;
         this.original = original;
-        originalBitmap = Controls.Bitmap(original.Bytes);
+        originalBitmap = Controls.Bitmap(original.Png);
+        operation = cancellationToken;
         this.shortcut = shortcut;
 
         var root = new DockPanel { Margin = new Thickness(16) };
         var header = new StackPanel();
         Controls.Heading(header, label);
-        header.Children.Add(Controls.Text(count == 1 ? System.IO.Path.GetFileName(path) :
-            $"{count} images · showing the first image", secondary: true));
+        header.Children.Add(Controls.Text(System.IO.Path.GetFileName(path), secondary: true));
         header.Children.Add(detail);
         DockPanel.SetDock(header, Dock.Top);
         root.Children.Add(header);
@@ -100,13 +112,11 @@ internal sealed class ImageEditor : Window
         DockPanel.SetDock(footer, Dock.Bottom);
         root.Children.Add(footer);
         footer.Children.Add(Controls.Button("Cancel", Close));
-        copy = Controls.Button("Copy result", Copy);
-        copy.IsEnabled = false;
+        copy = Controls.Button("Copy result", async () => await Finish(copyResult: true));
         footer.Children.Add(copy);
-        render = Controls.Button("Preview result", async () => await Render());
-        footer.Children.Add(render);
-        export = Controls.Button(count > 1 ? "Export batch" : "Export", Accept, true);
+        export = Controls.Button("Save copy", async () => await Finish(copyResult: false), true);
         footer.Children.Add(export);
+        footer.Children.Add(Controls.Button("Change destination…", async () => await Finish(copyResult: false, changeDestination: true)));
 
         var grid = new Grid { Margin = new Thickness(0, 12, 0, 12) };
         grid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -114,28 +124,45 @@ internal sealed class ImageEditor : Window
         root.Children.Add(grid);
         var viewport = new DockPanel();
         var toolbar = new WrapPanel();
-        DockPanel.SetDock(toolbar, Dock.Top);
-        viewport.Children.Add(toolbar);
-        toolbar.Children.Add(Controls.Button("Original", ShowOriginal));
-        toolbar.Children.Add(Controls.Button("Fit", () => { canvasHost.Width = double.NaN; canvasHost.Height = double.NaN; }));
-        toolbar.Children.Add(Controls.Button("Actual size", () =>
-        {
-            var image = preview.Source as System.Windows.Media.Imaging.BitmapSource;
-            if (image is null) return;
-            canvasHost.Width = image.PixelWidth;
-            canvasHost.Height = image.PixelHeight;
-        }));
-
         var scroll = new ScrollViewer { Content = canvasHost, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        DockPanel.SetDock(toolbar, Dock.Top);
+        viewport.Children.Add(toolbar);
+        toolbar.Children.Add(Controls.Button("Edit canvas", ShowOriginal));
+        render = Controls.Button("Result view", RequestResult);
+        toolbar.Children.Add(render);
+        toolbar.Children.Add(Controls.Button("Fit", () => SetZoom(false)));
+        toolbar.Children.Add(Controls.Button("Actual size", () => SetZoom(true)));
+
         canvasHost.MinWidth = 180;
         canvasHost.SizeChanged += (_, _) => Paint();
         scroll.SizeChanged += (_, _) =>
         {
-            canvasHost.MinHeight = Math.Max(200, scroll.ViewportHeight);
-            canvasHost.MinWidth = Math.Max(180, scroll.ViewportWidth);
+            if (!actualSize) SizeToViewport();
+        };
+        const int inset = 6;
+        scroll.ScrollChanged += (_, args) =>
+        {
+            if (!actualSize && (args.ViewportWidthChange != 0 || args.ViewportHeightChange != 0)) SizeToViewport();
         };
         canvasHost.Children.Add(preview);
+
+        void SizeToViewport()
+        {
+            if (scroll.ViewportWidth <= 0 || scroll.ViewportHeight <= 0) return;
+            canvasHost.Width = Math.Max(1, scroll.ViewportWidth - inset);
+            canvasHost.Height = Math.Max(1, scroll.ViewportHeight - inset);
+        }
+
+        void SetZoom(bool zoomed)
+        {
+            actualSize = zoomed;
+            if (!zoomed) { SizeToViewport(); return; }
+            canvasHost.Width = showingOriginal ? original.Width : processed?.Width ?? original.Width;
+            canvasHost.Height = showingOriginal ? original.Height : processed?.Height ?? original.Height;
+        }
+
+        zoomTo = SetZoom;
         canvasHost.Children.Add(overlay);
         viewport.Children.Add(scroll);
         grid.Children.Add(viewport);
@@ -150,12 +177,14 @@ internal sealed class ImageEditor : Window
         var annotate = command == "image.annotate";
         var adjust = command is "image.edit" or "image.share";
         var frame = command == "image.frame";
-        var squeeze = command == "image.compress";
-        format = Controls.Choice(options, "Output format", redact ? ["Png"] : Enum.GetNames<ImageFormat>(),
-            squeeze && System.IO.Path.GetExtension(path).Equals(".webp", StringComparison.OrdinalIgnoreCase) ? "WebP" : "Png");
-        quality = Controls.Field(options, "JPEG / WebP quality", "85", 3);
-        lossless = Controls.Checkbox(options, "Use lossless WebP encoding", false);
-        options.Children.Add(Controls.Text("JPEG flattens transparency onto white. Exports normalize color to sRGB and remove embedded profiles.", 12, true));
+        format = Controls.Choice(options, "Output format", redact ? ["Png"] : Enum.GetNames<ImageFormat>(), "Png");
+        format.IsEnabled = !redact;
+        if (!redact)
+        {
+            quality = Controls.Field(options, "JPEG / WebP quality", "85", 3);
+            lossless = Controls.Checkbox(options, "Use lossless WebP encoding", false);
+            options.Children.Add(Controls.Text("JPEG fills transparent areas with white.", 12, true));
+        }
         if (annotate || share || crop || redact)
         {
             var tools = new List<string>();
@@ -171,15 +200,17 @@ internal sealed class ImageEditor : Window
             if (annotate || share) text = Controls.Field(options, "Annotation text", "", 250);
             regions = new ListBox { Height = 84, DisplayMemberPath = nameof(RegionRow.Label), Margin = new Thickness(0, 4, 0, 8) };
             Controls.AddLabel(options, "Canvas regions", regions);
+            regions.SelectionChanged += (_, _) => Paint();
+            options.Children.Add(Controls.Text("Drag to draw. Drag a selected region to move it, or drag a corner to resize. Hold Shift to draw over another region.", 12, true));
             var changes = new WrapPanel();
             changes.Children.Add(Controls.Button("Undo", Undo));
             changes.Children.Add(Controls.Button("Redo", Redo));
             changes.Children.Add(Controls.Button("Remove region", RemoveRegion));
-            changes.Children.Add(Controls.Button("Move or resize region", MoveRegion));
+            changes.Children.Add(Controls.Button("Region dimensions…", MoveRegion));
             options.Children.Add(changes);
             if (redact || share)
             {
-                options.Children.Add(Controls.Text("Drag on the original to replace pixels with an opaque mask. Redacted copies use PNG. The original and backups remain unchanged.", 12, true));
+                options.Children.Add(Controls.Text("A redacted PNG replaces the selected pixels. The original and backups remain unchanged.", 12, true));
                 options.Children.Add(Controls.Button("Add redaction by dimensions", () =>
                 {
                     if (AskRegion(new(0, 0, Math.Max(1, (int)original.Width / 4), Math.Max(1, (int)original.Height / 4)),
@@ -190,9 +221,15 @@ internal sealed class ImageEditor : Window
             overlay.MouseLeftButtonDown += StartStroke;
             overlay.MouseMove += ContinueStroke;
             overlay.MouseLeftButtonUp += FinishStroke;
-            overlay.LostMouseCapture += (_, _) => { if (stroke.Count > 0) { stroke.Clear(); Paint(); } };
+            overlay.LostMouseCapture += (_, _) =>
+            {
+                stroke.Clear();
+                gesture = null;
+                gestureEnd = null;
+                Paint();
+            };
         }
-        if (adjust || squeeze)
+        if (adjust)
             edge = Controls.Field(options, "Maximum edge in px (0 keeps size)", "0", 5);
         if (adjust)
         {
@@ -236,22 +273,52 @@ internal sealed class ImageEditor : Window
         committed = Snapshot();
         PreviewKeyDown += (_, args) =>
         {
-            if (args.Key == Key.Escape) { Close(); args.Handled = true; }
-            if (Keyboard.FocusedElement is TextBoxBase) return;
+            if (args.Key == Key.Escape)
+            {
+                if (overlay.IsMouseCaptured) overlay.ReleaseMouseCapture();
+                else Close();
+                args.Handled = true;
+                return;
+            }
+            if (finishing || Keyboard.FocusedElement is TextBoxBase) return;
+            if (args.Key == Key.Delete && !finishing) { RemoveRegion(); args.Handled = true; }
             if (shortcut(args, "undo")) { Undo(); args.Handled = true; }
             if (shortcut(args, "redo")) { Redo(); args.Handled = true; }
         };
-        Closing += (_, _) => rendering?.Cancel();
+        previewDelay.Tick += async (_, _) =>
+        {
+            previewDelay.Stop();
+            if (!finishing && resultRequested) await Process(copyResult: false, previewOnly: true);
+        };
+        Closing += (_, _) =>
+        {
+            closed = true;
+            previewDelay.Stop();
+            rendering?.Cancel();
+        };
         ShowOriginal();
     }
 
-    private void InvalidateResult() { processed = null; processedOptions = null; copy.IsEnabled = false; }
+    private void InvalidateResult()
+    {
+        processed = null;
+        processedOptions = null;
+        rendering?.Cancel();
+        if (!resultRequested || finishing) return;
+        detail.Text = "Updating result…";
+        preview.Source = null;
+        previewDelay.Stop();
+        previewDelay.Start();
+    }
 
     private void ShowOriginal()
     {
+        resultRequested = false;
+        previewDelay.Stop();
         showingOriginal = true;
         preview.Source = originalBitmap;
-        detail.Text = $"Original view · {original.Width} × {original.Height} px · {new FileInfo(path).Length:N0} bytes";
+        detail.Text = $"Editing canvas · {original.Width} × {original.Height} px";
+        zoomTo(actualSize);
         Paint();
     }
 
@@ -277,117 +344,214 @@ internal sealed class ImageEditor : Window
             throw new ArgumentException("Choose PNG for an image with redactions.");
         if (command == "image.redact" && edits.Redactions is not { Length: > 0 })
             throw new ArgumentException("Draw at least one redaction mask.");
-        return new(output, Controls.Number(quality!, 1, 100, "Quality"), lossless?.IsChecked == true,
-            command == "image.compress", command == "image.redact", edits);
+        return new(output, quality is null ? 85 : Controls.Number(quality, 1, 100, "Quality"),
+            lossless?.IsChecked == true, Redaction: command == "image.redact", Edits: edits);
     }
 
     private static string ReadColor(string value) => value.Length == 7 && value[0] == '#' &&
         value.AsSpan(1).ToString().All(Uri.IsHexDigit) ? value : throw new ArgumentException("Use a hex color such as #0F766E.");
 
-    private async Task Render()
+    private void RequestResult()
     {
-        if (rendering is not null) return;
-        using var source = new CancellationTokenSource();
+        resultRequested = true;
+        showingOriginal = false;
+        overlay.Children.Clear();
+        previewDelay.Stop();
+        _ = Process(copyResult: false, previewOnly: true);
+    }
+
+    private async Task Finish(bool copyResult, bool changeDestination = false)
+    {
+        if (finishing || overlay.IsMouseCaptured) return;
+        finishing = true;
+        previewDelay.Stop();
+        options.IsEnabled = export.IsEnabled = copy.IsEnabled = render.IsEnabled = false;
+        try
+        {
+            await Process(copyResult, previewOnly: false);
+            if (closed || copyResult || processed is null) return;
+            OutputOptions = processedOptions;
+            VerifiedPreview = processed;
+            ChangeDestination = changeDestination;
+            DialogResult = true;
+        }
+        finally
+        {
+            finishing = false;
+            if (!closed) options.IsEnabled = export.IsEnabled = copy.IsEnabled = render.IsEnabled = true;
+        }
+    }
+
+    private async Task Process(bool copyResult, bool previewOnly)
+    {
+        rendering?.Cancel();
+        using var source = CancellationTokenSource.CreateLinkedTokenSource(operation);
         rendering = source;
-        render.IsEnabled = export.IsEnabled = false;
-        options.IsEnabled = false;
         try
         {
             var request = ReadOptions();
-            detail.Text = "Processing preview…";
-            var result = await Task.Run(() => Images.ProcessAsync(path, request, source.Token), source.Token);
+            var cached = processed;
+            detail.Text = previewOnly ? "Processing preview…" : "Processing current edits…";
+            var (result, bitmap) = await Task.Run(async () =>
+            {
+                await encoder.WaitAsync(source.Token);
+                try
+                {
+                    var output = cached ?? await Images.ProcessAsync(path, request, source.Token);
+                    var png = (previewOnly || copyResult) ? Images.DisplayPng(output, fullSize: copyResult, source.Token) : null;
+                    (byte[] Png, BitmapSource Bitmap)? display = png is null ? null : (png, Controls.Bitmap(png));
+                    return (output, display);
+                }
+                finally { encoder.Release(); }
+            }, source.Token);
             source.Token.ThrowIfCancellationRequested();
-            preview.Source = Controls.Bitmap(result.Bytes);
+            if (closed || !ReferenceEquals(rendering, source)) return;
             processed = result;
             processedOptions = request;
-            copy.IsEnabled = true;
-            showingOriginal = false;
-            Paint();
-            var before = new FileInfo(path).Length;
-            detail.Text = $"Result · {result.Width} × {result.Height} px · {before:N0} → {result.Bytes.Length:N0} bytes";
-            if (request.SmallerOnly && result.Bytes.Length >= before)
-                detail.Text += " · The result is larger than the source.";
+            if (copyResult && bitmap is { } clipboard)
+            {
+                Controls.CopyImage(clipboard.Png, clipboard.Bitmap);
+                detail.Text = "Processed image copied.";
+            }
+            else if (previewOnly && resultRequested && bitmap is { } display)
+            {
+                preview.Source = display.Bitmap;
+                zoomTo(actualSize);
+                var before = new FileInfo(path).Length;
+                detail.Text = $"Result view · {result.Width} × {result.Height} px · {before:N0} → {result.Bytes.Length:N0} bytes";
+            }
         }
         catch (OperationCanceledException) { }
-        catch (Exception error) when (error is IOException or InvalidDataException or ArgumentException or NotSupportedException)
-        { detail.Text = error.Message; }
-        finally { rendering = null; render.IsEnabled = export.IsEnabled = options.IsEnabled = true; }
-    }
-
-    private void Accept()
-    {
-        try
+        catch (Exception error) when (OperationCoordinator.IsOperationError(error))
         {
-            if (processed is not null) { OutputOptions = processedOptions; VerifiedPreview = processed; }
-            else OutputOptions = ReadOptions();
-            DialogResult = true;
+            if (!closed && ReferenceEquals(rendering, source))
+            {
+                detail.Text = OperationCoordinator.ErrorMessage(error);
+                if (previewOnly && resultRequested) preview.Source = null;
+                if (!copyResult) { processed = null; processedOptions = null; }
+            }
         }
-        catch (ArgumentException error) { detail.Text = error.Message; }
+        finally { if (ReferenceEquals(rendering, source)) rendering = null; }
     }
 
-    private void Copy()
+    private ImageViewport Viewport()
     {
-        if (processed is null) return;
-        try { Controls.CopyImage(processed.Bytes); detail.Text = "Processed image copied."; }
-        catch (System.Runtime.InteropServices.ExternalException) { detail.Text = "The clipboard is in use. Try again."; }
-    }
-
-    private Rect DisplayRect()
-    {
-        var scale = Math.Min(canvasHost.ActualWidth / original.Width, canvasHost.ActualHeight / original.Height);
-        var width = original.Width * scale;
-        var height = original.Height * scale;
-        return new((canvasHost.ActualWidth - width) / 2, (canvasHost.ActualHeight - height) / 2, width, height);
-    }
-
-    private ImagePoint PointAt(Point point)
-    {
-        var rect = DisplayRect();
-        return new((int)Math.Clamp(Math.Floor((point.X - rect.X) * original.Width / rect.Width), 0, original.Width - 1),
-            (int)Math.Clamp(Math.Floor((point.Y - rect.Y) * original.Height / rect.Height), 0, original.Height - 1));
+        var scale = Math.Min(canvasHost.ActualWidth / originalBitmap.PixelWidth, canvasHost.ActualHeight / originalBitmap.PixelHeight);
+        var width = originalBitmap.PixelWidth * scale;
+        var height = originalBitmap.PixelHeight * scale;
+        return new(new Rect((canvasHost.ActualWidth - width) / 2, (canvasHost.ActualHeight - height) / 2, width, height),
+            (int)original.Width, (int)original.Height);
     }
 
     private void StartStroke(object sender, MouseButtonEventArgs args)
     {
-        if (!showingOriginal || !options.IsEnabled || !DisplayRect().Contains(args.GetPosition(overlay))) return;
+        var position = args.GetPosition(overlay);
+        var view = Viewport();
+        if (!showingOriginal || finishing || !view.Display.Contains(position) || view.Display.Width <= 0) return;
+        var point = view.At(position);
         stroke.Clear();
-        stroke.Add(PointAt(args.GetPosition(overlay)));
+        gesture = null;
+        if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            var selected = regions?.SelectedItem as RegionRow;
+            if (selected is not null && RegionBounds(selected) is { } area)
+                foreach (var (handle, x, y) in Handles(view.Bounds(area)))
+                    if ((position - handle).Length <= 10) { gesture = new(selected, area, point, x, y); break; }
+            if (gesture is null && regions?.ItemsSource is IEnumerable<RegionRow> rows)
+                foreach (var row in rows.Reverse())
+                    if (RegionBounds(row) is { } region && view.Bounds(region).Contains(position))
+                    {
+                        regions.SelectedItem = row;
+                        gesture = new(row, region, point, 0, 0);
+                        break;
+                    }
+        }
+        if (gesture is null) stroke.Add(point);
+        else gestureEnd = point;
         overlay.CaptureMouse();
         args.Handled = true;
     }
 
     private void ContinueStroke(object sender, MouseEventArgs args)
     {
-        if (stroke.Count == 0 || args.LeftButton != MouseButtonState.Pressed) return;
-        var point = PointAt(args.GetPosition(overlay));
-        if (!Equals(point, stroke[^1]) && stroke.Count < 4095) stroke.Add(point);
+        if (!overlay.IsMouseCaptured || args.LeftButton != MouseButtonState.Pressed) return;
+        var point = Viewport().At(args.GetPosition(overlay));
+        if (gesture is not null) gestureEnd = point;
+        else if (stroke.Count > 0 && point != stroke[^1] && stroke.Count < 4095) stroke.Add(point);
         Paint();
     }
 
     private void FinishStroke(object sender, MouseButtonEventArgs args)
     {
-        if (stroke.Count == 0) return;
-        stroke.Add(PointAt(args.GetPosition(overlay)));
-        var points = stroke.ToArray();
-        stroke.Clear();
+        if (!overlay.IsMouseCaptured) return;
+        var point = Viewport().At(args.GetPosition(overlay));
+        var active = gesture;
+        var points = stroke.Count > 0 ? stroke.Append(point).ToArray() : [];
         overlay.ReleaseMouseCapture();
-        var region = Rectangle(points[0], points[^1]);
-        var selected = (string)tool!.SelectedItem;
-        if (selected == "Redaction") Change(selection with { Redactions = [.. selection.Redactions, region] });
-        else if (selected == "Crop") Change(selection with { Crop = Aspect(region) });
-        else Change(selection with { Marks = [.. selection.Marks,
-            new ImageMark(Enum.Parse<MarkKind>(selected), points, text?.Text ?? "")] });
+        if (active is not null)
+        {
+            var next = Adjusted(active, point);
+            if (next != active.Bounds) Change(WithRegion(active.Row, active.Bounds, next), active.Row);
+        }
+        else if (points.Length > 0)
+        {
+            var region = Rectangle(points[0], points[^1]);
+            var selected = (string)tool!.SelectedItem;
+            if (selected == "Redaction") Change(selection with { Redactions = [.. selection.Redactions, region] });
+            else if (selected == "Crop") Change(selection with { Crop = Aspect(region) }, new("crop", 0, "Crop"));
+            else Change(selection with { Marks = [.. selection.Marks,
+                new ImageMark(Enum.Parse<MarkKind>(selected), points, text?.Text ?? "")] });
+        }
         args.Handled = true;
+    }
+
+    private PixelRect Adjusted(Gesture active, ImagePoint point) => active.XEdge == 0
+        ? Viewport().Move(active.Bounds, active.Start, point)
+        : Viewport().Resize(active.Bounds, active.Start, point, active.XEdge, active.YEdge, active.Row.Kind == "crop" ? CropAspect() : 0);
+
+    private PixelRect? RegionBounds(RegionRow row) => row.Kind switch
+    {
+        "crop" => selection.Crop,
+        "mask" => selection.Redactions[row.Index],
+        _ => MarkBounds(selection.Marks[row.Index])
+    };
+
+    private static PixelRect MarkBounds(ImageMark mark)
+    {
+        var points = mark.Points;
+        var area = Rectangle(new(points.Min(point => point.X), points.Min(point => point.Y)),
+            new(points.Max(point => point.X), points.Max(point => point.Y)));
+        return area;
+    }
+
+    private Selection WithRegion(RegionRow row, PixelRect previous, PixelRect next)
+    {
+        if (row.Kind == "crop") return selection with { Crop = next };
+        if (row.Kind == "mask")
+        {
+            var masks = (PixelRect[])selection.Redactions.Clone();
+            masks[row.Index] = next;
+            return selection with { Redactions = masks };
+        }
+        var marks = (ImageMark[])selection.Marks.Clone();
+        var mark = marks[row.Index];
+        marks[row.Index] = mark with { Points = mark.Points.Select(point => new ImagePoint(
+            next.X + ScaleOffset(point.X - previous.X, previous.Width, next.Width),
+            next.Y + ScaleOffset(point.Y - previous.Y, previous.Height, next.Height))).ToArray() };
+        return selection with { Marks = marks };
+
+        static int ScaleOffset(int offset, int from, int to) => from <= 1 ? 0 : (int)((long)offset * (to - 1) / (from - 1));
     }
 
     private PixelRect Aspect(PixelRect region)
     {
-        var selected = ratio?.SelectedItem as string;
-        var aspect = selected switch { "1:1" => 1.0, "4:3" => 4.0 / 3, "16:9" => 16.0 / 9, _ => 0 };
+        var aspect = CropAspect();
         if (aspect == 0) return region;
         return region with { Width = Math.Max(1, Math.Min(region.Width, (int)(region.Height * aspect))),
             Height = Math.Max(1, Math.Min(region.Height, (int)(region.Width / aspect))) };
     }
+
+    private double CropAspect() => (string?)ratio?.SelectedItem switch { "1:1" => 1.0, "4:3" => 4.0 / 3, "16:9" => 16.0 / 9, _ => 0 };
 
     private static PixelRect Rectangle(ImagePoint a, ImagePoint b) => new(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y),
         Math.Abs(b.X - a.X) + 1, Math.Abs(b.Y - a.Y) + 1);
@@ -430,29 +594,8 @@ internal sealed class ImageEditor : Window
 
     private void MoveRegion()
     {
-        if (regions?.SelectedItem is not RegionRow row) return;
-        if (row.Kind == "mark")
-        {
-            var mark = selection.Marks[row.Index];
-            var shape = new PixelRect(mark.Points.Min(point => point.X), mark.Points.Min(point => point.Y),
-                mark.Points.Max(point => point.X) - mark.Points.Min(point => point.X) + 1,
-                mark.Points.Max(point => point.Y) - mark.Points.Min(point => point.Y) + 1);
-            if (AskRegion(shape, "Move annotation") is not { } next) return;
-            var revised = mark with
-                { Points = mark.Points.Select(point => new ImagePoint(
-                    next.X + (int)((long)(point.X - shape.X) * next.Width / shape.Width),
-                    next.Y + (int)((long)(point.Y - shape.Y) * next.Height / shape.Height))).ToArray() };
-            var marks = (ImageMark[])selection.Marks.Clone();
-            marks[row.Index] = revised;
-            Change(selection with { Marks = marks });
-        }
-        else if (row.Kind == "mask" && AskRegion(selection.Redactions[row.Index], "Move redaction") is { } redaction)
-        {
-            var masks = (PixelRect[])selection.Redactions.Clone();
-            masks[row.Index] = redaction;
-            Change(selection with { Redactions = masks });
-        }
-        else if (row.Kind == "crop") NumericCrop();
+        if (regions?.SelectedItem is not RegionRow row || RegionBounds(row) is not { } area) return;
+        if (AskRegion(area, row.Label + " dimensions") is { } next) Change(WithRegion(row, area, next), row);
     }
 
     private void RemoveRegion()
@@ -482,7 +625,12 @@ internal sealed class ImageEditor : Window
         committed = snapshot;
     }
 
-    private void Change(Selection next) { selection = next; Commit(); RefreshSelection(); }
+    private void Change(Selection next, RegionRow? selected = null)
+    {
+        selection = next;
+        Commit();
+        RefreshSelection(selected);
+    }
     private void Undo() { Commit(); Restore(undo, redo); }
     private void Redo() => Restore(redo, undo);
 
@@ -509,7 +657,7 @@ internal sealed class ImageEditor : Window
         RefreshSelection();
     }
 
-    private void RefreshSelection()
+    private void RefreshSelection(RegionRow? selected = null)
     {
         if (regions is not null)
         {
@@ -518,35 +666,106 @@ internal sealed class ImageEditor : Window
             rows.AddRange(selection.Redactions.Select((_, i) => new RegionRow("mask", i, $"Redaction {i + 1}")));
             rows.AddRange(selection.Marks.Select((mark, i) => new RegionRow("mark", i, $"{mark.Kind} {i + 1}")));
             regions.ItemsSource = rows;
-            regions.SelectedIndex = rows.Count - 1;
+            var index = selected is null ? -1 : rows.FindIndex(row => row.Kind == selected.Kind && row.Index == selected.Index);
+            regions.SelectedIndex = index >= 0 ? index : rows.Count - 1;
         }
         InvalidateResult();
-        ShowOriginal();
+        Paint();
     }
 
     private void Paint()
     {
         overlay.Children.Clear();
         if (!showingOriginal) return;
-        var rect = DisplayRect();
-        if (rect.Width <= 0 || rect.Height <= 0) return;
-        if (selection.Crop is { } crop) Box(crop, Brushes.Transparent, Brushes.DeepSkyBlue, rect);
-        foreach (var mask in selection.Redactions) Box(mask, Brushes.Black, Brushes.White, rect);
-        foreach (var mark in selection.Marks)
-            Box(Rectangle(mark.Points[0], mark.Points[^1]), Brushes.Transparent, Brushes.MediumTurquoise, rect);
-        if (stroke.Count > 1)
-            Box(Rectangle(stroke[0], stroke[^1]), (string)tool!.SelectedItem == "Redaction" ? Brushes.Black : Brushes.Transparent,
-                Brushes.White, rect);
+        var view = Viewport();
+        var display = view.Display;
+        if (display.Width <= 0 || display.Height <= 0) return;
+        var drawn = gesture is { } active && gestureEnd is { } end
+            ? WithRegion(active.Row, active.Bounds, Adjusted(active, end)) : selection;
+        if (drawn.Crop is { } crop) Box(view.Bounds(crop), Brushes.Transparent, Brushes.MediumTurquoise);
+        foreach (var mask in drawn.Redactions) Box(view.Bounds(mask), Brushes.Black, Brushes.Transparent);
+        foreach (var mark in drawn.Marks) DrawMark(mark, view);
+        if (regions?.SelectedItem is RegionRow row)
+        {
+            var selected = row.Kind switch
+            {
+                "crop" => drawn.Crop,
+                "mask" when row.Index < drawn.Redactions.Length => drawn.Redactions[row.Index],
+                "mark" when row.Index < drawn.Marks.Length => MarkBounds(drawn.Marks[row.Index]),
+                _ => null
+            };
+            if (selected is { } bounds)
+            {
+                var box = view.Bounds(bounds);
+                Box(box, Brushes.Transparent, Brushes.White);
+                foreach (var (handle, _, _) in Handles(box))
+                    Box(new Rect(handle.X - 4, handle.Y - 4, 8, 8), Brushes.MediumTurquoise, Brushes.Black);
+            }
+        }
+        if (stroke.Count <= 1) return;
+        var toolName = (string)tool!.SelectedItem;
+        if (toolName is "Redaction" or "Crop")
+        {
+            var area = Rectangle(stroke[0], stroke[^1]);
+            if (toolName == "Crop") area = Aspect(area);
+            Box(view.Bounds(area), toolName == "Redaction" ? Brushes.Black : Brushes.Transparent, Brushes.White);
+        }
+        else DrawMark(new ImageMark(Enum.Parse<MarkKind>(toolName), stroke.ToArray(), text?.Text ?? ""), view);
     }
 
-    private void Box(PixelRect area, Brush fill, Brush border, Rect displayed)
+    private static (Point Point, int X, int Y)[] Handles(Rect box) =>
+        [(box.TopLeft, -1, -1), (box.TopRight, 1, -1), (box.BottomLeft, -1, 1), (box.BottomRight, 1, 1)];
+
+    private void DrawMark(ImageMark mark, ImageViewport view)
     {
-        var x = displayed.Width / original.Width;
-        var y = displayed.Height / original.Height;
-        var element = new System.Windows.Shapes.Rectangle { Width = area.Width * x, Height = area.Height * y,
-            Fill = fill, Stroke = border, StrokeThickness = 1.5, IsHitTestVisible = false };
-        Canvas.SetLeft(element, displayed.Left + area.X * x);
-        Canvas.SetTop(element, displayed.Top + area.Y * y);
+        var start = mark.Points[0];
+        var end = mark.Points[^1];
+        var a = view.At(start.X, start.Y);
+        var b = view.At(end.X, end.Y);
+        var bounds = new Rect(a, b);
+        var color = new SolidColorBrush((Color)ColorConverter.ConvertFromString(mark.Color));
+        var thickness = Math.Max(2, Math.Max(original.Width, original.Height) / 250.0);
+        var scale = view.Display.Width / original.Width;
+        var border = Math.Max(1, thickness * scale);
+        switch (mark.Kind)
+        {
+            case MarkKind.Rectangle:
+                Box(bounds, Brushes.Transparent, color, border);
+                break;
+            case MarkKind.Ellipse:
+                Place(new Ellipse { Width = bounds.Width, Height = bounds.Height, Stroke = color, StrokeThickness = border },
+                    bounds.Left, bounds.Top);
+                break;
+            case MarkKind.Freehand:
+                Place(new Polyline { Points = new PointCollection(mark.Points.Select(point => view.At(point.X, point.Y))),
+                    Stroke = color, StrokeThickness = border }, 0, 0);
+                break;
+            case MarkKind.Arrow:
+                var angle = Math.Atan2(end.Y - start.Y, end.X - start.X);
+                var length = thickness * 5;
+                Line(a, b);
+                Line(b, view.At(end.X - length * Math.Cos(angle - 0.5), end.Y - length * Math.Sin(angle - 0.5)));
+                Line(b, view.At(end.X - length * Math.Cos(angle + 0.5), end.Y - length * Math.Sin(angle + 0.5)));
+                break;
+            case MarkKind.Text:
+                var size = Math.Max(1, Math.Max(18, thickness * 6) * scale);
+                Place(new TextBlock { Text = mark.Text, FontSize = size, Foreground = color }, a.X, a.Y - size);
+                break;
+        }
+
+        void Line(Point p, Point q) => Place(new Line { X1 = p.X, Y1 = p.Y, X2 = q.X, Y2 = q.Y,
+            Stroke = color, StrokeThickness = border }, 0, 0);
+    }
+
+    private void Box(Rect bounds, Brush fill, Brush border, double thickness = 1.5) =>
+        Place(new Rectangle { Width = bounds.Width, Height = bounds.Height, Fill = fill, Stroke = border, StrokeThickness = thickness },
+            bounds.Left, bounds.Top);
+
+    private void Place(FrameworkElement element, double x, double y)
+    {
+        element.IsHitTestVisible = false;
+        Canvas.SetLeft(element, x);
+        Canvas.SetTop(element, y);
         overlay.Children.Add(element);
     }
 }

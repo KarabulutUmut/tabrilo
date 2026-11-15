@@ -12,7 +12,11 @@ public sealed record Preferences
     public bool UseTray { get; init; }
     public bool StartAtLogin { get; init; }
     public string DragModifier { get; init; } = "Shift";
+    public string DragButton { get; init; } = "Primary";
     public string? ExportDirectory { get; init; }
+    public string? ClipboardDirectory { get; init; }
+    public int JpegQuality { get; init; } = 88;
+    public int WebPQuality { get; init; } = 85;
     public Dictionary<string, string> Shortcuts { get; init; } = [];
     public string[] Favorites { get; init; } = ["image.convert", "image.redact", "image.share", "qr.read", "pdf.compress", "archive.extract"];
     public RecentResult[] Recent { get; init; } = [];
@@ -39,9 +43,13 @@ public sealed class LocalState
                     Path.IsPathFullyQualified(item.Path)).Take(50).ToArray() : [],
                 Appearance = settings.Appearance is "Light" or "Dark" ? settings.Appearance : "System",
                 DragModifier = settings.DragModifier is "Ctrl" or "Alt" or "Off" ? settings.DragModifier : "Shift",
+                DragButton = settings.DragButton == "Secondary" ? "Secondary" : "Primary",
                 Favorites = settings.Favorites.Where(id => Commands.All.Any(c => c.Id == id && c.Scope == "operation"))
                     .Distinct().Take(6).ToArray(),
-                ExportDirectory = settings.ExportDirectory is { } path && Path.IsPathFullyQualified(path) ? path : null
+                ExportDirectory = ValidDirectory(settings.ExportDirectory),
+                ClipboardDirectory = ValidDirectory(settings.ClipboardDirectory),
+                JpegQuality = Math.Clamp(settings.JpegQuality, 1, 100),
+                WebPQuality = Math.Clamp(settings.WebPQuality, 1, 100)
             };
         }
         catch (Exception error) when (error is JsonException or InvalidDataException)
@@ -50,6 +58,9 @@ public sealed class LocalState
             return new();
         }
     }
+
+    private static string? ValidDirectory(string? path) =>
+        path is not null && Path.IsPathFullyQualified(path) ? path : null;
 
     public void Write(Preferences settings)
     {
