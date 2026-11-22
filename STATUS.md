@@ -25,7 +25,7 @@ on main once. Follow-up changes use pull requests.
 | Explorer gesture and visual acceptance | Blocked | Desktop capture returned `FrameArrived timed out`; coordinate input geometry unavailable |
 | Windows installer and updater | Verified with evidence | Per-user 0.1.0 → 0.2.0 using strict NetSparkle verification and ephemeral keys; uninstall preserved local state and export |
 | Shared contracts and Mac shell | Implemented/unverified | AppKit source and bundle script consume the shared catalog; Mac build/session unavailable |
-| GitHub Actions | Implemented/unverified | Windows build/test, main-only package self-check, and C# CodeQL workflows |
+| Hosted Windows CI | Verified with evidence | Clean checkout built and passed 11/11 groups and the unsigned payload self-check |
 | Production distribution | Blocked | Acceptance, binary redistribution review, publisher certificate, approved update key and feed required |
 
 ## Reported local evidence from the Windows build
@@ -73,13 +73,23 @@ exited 0 with 11/11 groups. `scripts/package.ps1 -Configuration Release -Payload
 and the payload's `--self-check` exited 0. Current logs are in
 `artifacts/verification/github-foundation-*.log`.
 
-See [Actions](https://github.com/KarabulutUmut/tabrilo/actions) for remote evidence.
+The bootstrap [Windows run](https://github.com/KarabulutUmut/tabrilo/actions/runs/43758978806)
+passed both jobs on Windows Server 2025. The
+[C# CodeQL run](https://github.com/KarabulutUmut/tabrilo/actions/runs/43758978878)
+completed and raised one open high-severity
+[archive path alert](https://github.com/KarabulutUmut/tabrilo/security/code-scanning/1).
 Desktop interaction and installed updates are outside the hosted suite.
-Unsigned package output stays on the runner pending redistribution review.
+
+The first Dependabot jobs completed for
+[Actions](https://github.com/KarabulutUmut/tabrilo/actions/runs/43758980721) and
+[NuGet](https://github.com/KarabulutUmut/tabrilo/actions/runs/43758980985).
+The NuGet PRs need solution-wide lockfile refreshes after central version
+changes. The initial [managed submission](https://github.com/KarabulutUmut/tabrilo/actions/runs/43759397138)
+hit `NETSDK1100`. Linux runner restore now opts into Windows targeting packs.
 
 ## Next actions
 
-1. Verify main CI, CodeQL, Dependabot jobs and the main-branch rules after bootstrap.
+1. Triage the archive CodeQL alert and review NuGet submission and update PRs.
 2. Complete wheel, editor, clipboard and visual acceptance on a physical or capturable desktop.
 3. Extend PDF, format and filesystem safety fixtures. Validate installer interruption and clean Windows 11 offline use.
 4. Review redistribution and production signing and hosting after owner approval.
