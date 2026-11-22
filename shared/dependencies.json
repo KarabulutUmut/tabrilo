@@ -70,7 +70,7 @@
     },
     {
       "id": "System.IO.Hashing",
-      "version": "10.0.15",
+      "version": "11.0.0",
       "license": "MIT",
       "purpose": "Streamed ZIP CRC-32 integrity checks",
       "source": "https://github.com/dotnet/runtime"
