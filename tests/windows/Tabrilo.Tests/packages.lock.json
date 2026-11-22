@@ -4,8 +4,8 @@
     "net10.0-windows10.0.19041": {
       "Magick.NET.Core": {
         "type": "Transitive",
-        "resolved": "15.0.0",
-        "contentHash": "mP/VovMRuXBX2Rcnn1wWu0Zur6cjsf8IQhmTUCrasEk8cyAtN5sjHE7NxiH88whw8/2mjRvuphKUwj6bAZslpQ=="
+        "resolved": "15.1.0",
+        "contentHash": "WIaemRN4tJvw5BNUfsO8/V3LojV5FOCojQ/sQ4ruXme1o2frRYfcvHPhKV5E6TbYoEdVEvtGX+8Wbut0F2lJHg=="
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
         "type": "Transitive",
@@ -38,7 +38,7 @@
       "tabrilo.processing": {
         "type": "Project",
         "dependencies": {
-          "Magick.NET-Q8-x64": "[15.0.0, 15.0.0]",
+          "Magick.NET-Q8-x64": "[15.1.0, 15.1.0]",
           "PDFsharp": "[6.2.4, 6.2.4]",
           "SharpCompress": "[0.50.9, 0.50.9]",
           "System.IO.Hashing": "[10.0.15, 10.0.15]",
@@ -49,11 +49,11 @@
       },
       "Magick.NET-Q8-x64": {
         "type": "CentralTransitive",
-        "requested": "[15.0.0, 15.0.0]",
-        "resolved": "15.0.0",
-        "contentHash": "RVfIbAddWlHEr6aJiYAYIRn1P7bQUoSv9GJN0fZmcatnenaD4KTtzoxOFYq67KXegLTsBQHsGdjzgGDW5d4Ing==",
+        "requested": "[15.1.0, 15.1.0]",
+        "resolved": "15.1.0",
+        "contentHash": "Fo6mQGnG+MtO8ehF/vpGeN/4OlZRDLO7uv4v2yOlxJGxX0JurLMBt1nYMX4QzPVssdlnpI446W2PEw+27beHbQ==",
         "dependencies": {
-          "Magick.NET.Core": "15.0.0"
+          "Magick.NET.Core": "15.1.0"
         }
       },
       "NetSparkleUpdater.SparkleUpdater": {
