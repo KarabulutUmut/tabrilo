@@ -96,7 +96,7 @@ and installed-updater acceptance require separate native sessions. Release
 publication is inactive. Production signing, feed configuration and binary
 redistribution still require review and owner approval.
 
-## macOS foundation
+## macOS build
 
 `sh apps/macos/build.sh` builds the native bundle on a Mac with Xcode Command
 Line Tools. The bundle uses AppKit, Core Graphics and Image I/O. Finder acceptance requires a Mac desktop. See

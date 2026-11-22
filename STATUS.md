@@ -1,13 +1,15 @@
 # Tabrilo current status
 
-Windows three-wheel development is on utility PR #8. Owner gesture acceptance is open.
+Windows development build 0.1.2 at `5d2c4be5` is the owner-tested payload on draft PR #8.
 
 | Area | Status | Evidence |
 | --- | --- | --- |
 | Native image/PDF, QR, archives and updater trust | Verified with evidence | Native Release suite, Windows 10 x64, .NET SDK 10.0.404 |
 | PDF Split | Verified with evidence | Nine one-page parts from the owner's tagged MDPI guide. Source SHA-256 preserved. Fixtures check links, annotations, bookmarks, order and rotation |
 | DOCX/PPTX layout | Verified with evidence | Both two-page fixtures render through local LibreOffice 26.8.3 into independently decoded PDFs and page images |
-| Windows wheel and six file actions | Implemented/unverified | Owner verified packaged Explorer PNG → JPG and cancellation on 2c5077ec. One decoded JPEG, unchanged PNG. Desktop, separate edge cases, external actions and mixed DPI need acceptance |
+| Explorer and Desktop gesture | Verified with evidence | Owner tested Explorer JPG and cancellation on 2c5077ec. On 5d2c4be5, Home closed, center and outside releases cancelled separately, switching Shift/Ctrl/Alt/Shift and leaving/returning gave one neighboring JPG |
+| Clipboard | Verified with evidence | Explorer pasted Tabrilo file references byte-for-byte. Notepad pasted and saved the exact Unicode absolute path |
+| Remaining desktop checks | Implemented/unverified | Physical Esc under load, mixed DPI, visual accessibility, native share targets, Float drag-out, Move collisions and terminal interaction |
 | macOS | Implemented/unverified | Native hosted build and three-page raster/combined PDF self-check passed. Finder, remaining tools, Office and updates need native acceptance or implementation |
 | Production publication | Blocked | Native acceptance, redistribution review, signing credentials and approved feeds |
 
@@ -16,10 +18,15 @@ Windows three-wheel development is on utility PR #8. Owner gesture acceptance is
 From native PowerShell 7 at the repository root, set `TABRILO_TEST_OFFICE` to the absolute path of
 the extracted engine's `program/soffice.com` and optionally `TABRILO_TEST_SPLIT_PDF` to a selected PDF.
 Run `pwsh -NoProfile -File scripts/test.ps1 -Configuration Release`. The log prints its evidence directory.
-The native run with both optional inputs passed 16/16 checks. Results and independent inspections are in
-`artifacts/verification/three-wheel*` and `artifacts/tests`. Physical Explorer timing is a separate check.
+With both optional inputs and `-OldInstaller` / `-NewInstaller`, the final run passed 17/17 groups,
+including isolated signed installation, upgrade 0.1.0 → 0.1.2 and uninstall. Previous settings were restored.
+The log is `artifacts/verification/three-wheel-test.log`. Outputs are in `artifacts/tests/20261122-225908-27992`.
+Eight coordinator results were inspected across PDF, Word and PowerPoint. Rendered WPF wheel samples,
+clipboard checks and owner evidence are in `artifacts/verification/three-wheel*`. Forty warm Windows
+wheel construction/layout samples took 0.48 ms median, 0.54 ms p95, excluding OS event delivery and display.
 Build an Office-equipped local payload with `scripts/package.ps1 -Configuration Release -PayloadOnly -IncludeOffice`.
 The pinned MSI is 376,311,808 bytes. The measured administrative image is 1,603,968,965 bytes.
+The Office-equipped local installer is 611,727,657 bytes. The unpacked app passes its self-check.
 The checked-out scripts do not install LibreOffice system-wide. Complex layout, substitute fonts
 and editable PDF reconstruction remain outstanding.
 
@@ -35,8 +42,8 @@ fix and native regression evidence. The trace is in `artifacts/verification/util
 
 ## Next actions
 
-1. Complete remaining packaged Desktop/Explorer interaction, outside-release, visual and external clipboard acceptance.
-2. Verify clean Windows installation, real installed upgrades and licensing before public distribution.
+1. Check physical Esc under load, native actions, accessibility and mixed-DPI monitors.
+2. Verify Office-equipped installation on a clean Windows machine and review redistribution before publication.
 3. Complete archive staging ownership and rerun CodeQL against the fix.
 4. Validate Finder gestures, Mac rendering, contextual tools, permissions, packaging and updates on macOS.
 5. Evaluate editable Office reconstruction and richer tagged PDF hierarchy preservation.
