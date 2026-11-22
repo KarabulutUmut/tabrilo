@@ -18,6 +18,10 @@ func macSelfCheck(_ input: URL) throws {
     guard let output = pages.first else { throw FileProblem("Missing page folder.") }
     let images = try FileManager.default.contentsOfDirectory(at:output,includingPropertiesForKeys:nil)
     guard images.count == 3, images.allSatisfy({ CGImageSourceCreateWithURL($0 as CFURL,nil) != nil }) else { throw FileProblem("Missing page images.") }
+    guard MacExports.tools([fixture], spec: spec) == ["pdf.metadata"],
+        try MacExports.pdfInformation(fixture).contains("3 pages"),
+        MacExports.tools(images, spec: spec).contains("image.metadata"),
+        try MacExports.run("image.metadata",urls:[images[0]],combined:nil).count == 1 else { throw FileProblem("Metadata tools failed.") }
     let jpg = try MacExports.run("convert.jpg",urls:[images[0]],combined:nil)
     let pdf = try MacExports.run("convert.pdf",urls:images,combined:nil)
     guard CGImageSourceCreateWithURL(jpg[0] as CFURL,nil) != nil, CGPDFDocument(pdf[0] as CFURL)?.numberOfPages == 3,

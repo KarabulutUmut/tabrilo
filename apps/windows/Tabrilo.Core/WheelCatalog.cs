@@ -5,7 +5,7 @@ namespace Tabrilo.Core;
 public enum WheelMode { Convert, Tools, Actions }
 
 public sealed record WheelCatalog(int Version, string[] Bindings, double Diameter, double InnerRadius,
-    double OuterRadius, string[] Conversion, string[] Tools, string[] Actions)
+    double OuterRadius, string[] Conversion, string[] Tools, string[] Actions, Dictionary<string, string> Symbols)
 {
     public static WheelCatalog Shared { get; } = Load();
 
@@ -23,15 +23,16 @@ public sealed record WheelCatalog(int Version, string[] Bindings, double Diamete
     {
         if (paths.Count == 0) return [];
         var ids = mode switch { WheelMode.Convert => Conversion, WheelMode.Tools => Tools, _ => Actions };
+        var kinds = mode == WheelMode.Actions ? [] : paths.Select(FileKinds.Classify).ToHashSet();
         var formats = paths.Select(path => Path.GetExtension(path).TrimStart('.').ToLowerInvariant())
             .Select(ext => ext == "jpeg" ? "jpg" : ext).ToHashSet();
         return ids.Select(id => Commands.All.First(c => c.Id == id)).Where(command =>
         {
-            if (!command.AppliesTo(paths)) return false;
+            if (mode != WheelMode.Actions && !kinds.All(kind => command.Kinds.Contains(kind))) return false;
             if (mode == WheelMode.Convert)
                 return !formats.Contains(command.Id[8..]) && (command.Id != "convert.webp" || webp) &&
-                    (office || !paths.Any(path => FileKinds.Classify(path) == "office")) &&
-                    (command.Id != "convert.pdf" || !paths.Select(FileKinds.Classify).Distinct().Skip(1).Any());
+                    (office || !kinds.Contains("office")) &&
+                    (command.Id != "convert.pdf" || kinds.Count == 1);
             return command.Id switch
             {
                 "pdf.merge" => paths.Count > 1,

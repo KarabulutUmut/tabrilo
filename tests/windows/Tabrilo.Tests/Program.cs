@@ -118,10 +118,10 @@ async Task OperationPolicy()
     using var cancellation = new CancellationTokenSource();
     cancellation.Cancel();
     await Expect<OperationCanceledException>(() => OperationDestination.Writable(sub, cancellation.Token));
-    Require(new[] { "image.metadata", "pdf.compress", "archive.extract", "qr.read" }.All(id =>
+    Require(new[] { "image.compress", "image.metadata", "pdf.compress", "archive.extract", "qr.read" }.All(id =>
         QuickOperations.Handles(id) && OperationRouting.For(id) == Presentation.Quick), "direct paths");
-    Require(new[] { "image.convert", "image.compress" }.All(id =>
-        QuickOperations.Handles(id) && OperationRouting.For(id) == Presentation.Choices), "compact format/preset paths");
+    Require(new[] { "convert.png", "convert.jpg", "convert.pdf", "convert.webp" }.All(id =>
+        QuickOperations.Handles(id) && OperationRouting.For(id) == Presentation.Quick), "direct format commands");
     Require(OperationRouting.For("image.redact") == Presentation.Editor && !QuickOperations.Handles("image.redact") &&
         OperationRouting.For("pdf.compress", advanced: true) == Presentation.Choices, "editor and explicit advanced routing");
 }

@@ -4,7 +4,7 @@
 
 Tabrilo is a native desktop toolkit for working locally with images, PDFs, QR
 codes and archives. The Windows development build uses WPF and .NET 10. The
-macOS follow-up has an AppKit wheel and native image/PDF and file-action adapters.
+macOS has an AppKit wheel, native image/PDF export, image compression and metadata tools, and file actions.
 
 Tabrilo is in development and has no approved public release. See
 [STATUS.md](STATUS.md) for verification and remaining acceptance work.
@@ -98,7 +98,7 @@ redistribution still require review and owner approval.
 
 ## macOS foundation
 
-`sh apps/macos/build.sh` describes the build entry on a Mac with Xcode Command
+`sh apps/macos/build.sh` builds the native bundle on a Mac with Xcode Command
 Line Tools. The bundle uses AppKit, Core Graphics and Image I/O. Finder acceptance requires a Mac desktop. See
 [STATUS.md](STATUS.md) for the Mac handoff.
 

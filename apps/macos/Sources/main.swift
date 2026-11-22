@@ -81,6 +81,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard worker == nil, !urls.isEmpty else { return }
         do {
             switch id {
+            case "pdf.metadata":
+                let source = urls[0]
+                Task {
+                    do {
+                        let details = try await Task.detached { try MacExports.pdfInformation(source) }.value
+                        let alert = NSAlert()
+                        alert.messageText = source.lastPathComponent
+                        alert.informativeText = details
+                        alert.runModal()
+                    } catch { message(error.localizedDescription) }
+                }
             case "action.copy", "action.path":
                 let pasteboard = NSPasteboard.general; pasteboard.clearContents()
                 if id == "action.copy" { guard pasteboard.writeObjects(urls as [NSURL]) else { throw FileProblem("Clipboard unavailable.") } }
@@ -114,14 +125,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 message("\(moved) moved")
             default:
                 let mixed = Set(urls.map { $0.deletingLastPathComponent() }).count > 1
-                let combined = mixed && id == "convert.pdf" ? folder() : nil
-                if mixed && id == "convert.pdf" && combined == nil { return }
+                var combined: URL?
+                if mixed && id == "convert.pdf" || urls.contains(where: { !FileManager.default.isWritableFile(atPath: $0.deletingLastPathComponent().path) }) {
+                    guard let chosen = folder() else { return }
+                    combined = chosen
+                }
                 message("Converting…")
                 let task = Task.detached { try MacExports.run(id,urls:urls,combined:combined) }
                 worker = task
                 Task {
                     defer { worker = nil }
-                    do { last = try await task.value; message("\(last.count) export(s) complete") }
+                    do {
+                        last = try await task.value
+                        message(id == "image.compress" ? "\(last.count)/\(urls.count) smaller copies" : "\(last.count) export(s) complete")
+                    }
                     catch { message(error.localizedDescription) }
                 }
             }

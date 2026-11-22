@@ -38,5 +38,31 @@
     "action.path",
     "action.terminal"
   ],
+  "symbols": {
+    "convert.jpg": "▧",
+    "convert.png": "▧",
+    "convert.pdf": "▤",
+    "convert.webp": "▧",
+    "image.compress": "⇲",
+    "pdf.compress": "⇲",
+    "image.redact": "■",
+    "image.crop": "⌑",
+    "image.frame": "□",
+    "image.edit": "✎",
+    "image.annotate": "✎",
+    "image.metadata": "ⓘ",
+    "pdf.metadata": "ⓘ",
+    "pdf.split": "⑂",
+    "pdf.merge": "⊕",
+    "pdf.organize": "⇅",
+    "qr.read": "▦",
+    "archive.extract": "↓",
+    "action.share": "↗",
+    "action.float": "◇",
+    "action.copy": "▣",
+    "action.move": "→",
+    "action.path": "⌁",
+    "action.terminal": ">_"
+  },
   "destination": "source-parent"
 }

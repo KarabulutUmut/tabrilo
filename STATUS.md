@@ -7,8 +7,8 @@ Windows three-wheel development is on utility PR #8. Owner gesture acceptance is
 | Native image/PDF, QR, archives and updater trust | Verified with evidence | Native Release suite, Windows 10 x64, .NET SDK 10.0.404 |
 | PDF Split | Verified with evidence | Nine one-page parts from the owner's tagged MDPI guide. Source SHA-256 preserved. Fixtures check links, annotations, bookmarks, order and rotation |
 | DOCX/PPTX layout | Verified with evidence | Both two-page fixtures render through local LibreOffice 26.8.3 into independently decoded PDFs and page images |
-| Windows wheel and six file actions | Implemented/unverified | Physical Explorer/Desktop, external copy/paste, Float, Move and mixed-DPI acceptance tracked separately |
-| macOS | Implemented/unverified | AppKit wheel, file actions and image/PDF conversion. Finder acceptance, contextual tools, Office and updates remain open |
+| Windows wheel and six file actions | Implemented/unverified | Owner verified packaged Explorer PNG → JPG and cancellation on 2c5077ec. One decoded JPEG, unchanged PNG. Desktop, separate edge cases, external actions and mixed DPI need acceptance |
+| macOS | Implemented/unverified | Native hosted build and three-page raster/combined PDF self-check passed. Finder, remaining tools, Office and updates need native acceptance or implementation |
 | Production publication | Blocked | Native acceptance, redistribution review, signing credentials and approved feeds |
 
 ## Reproduction
@@ -27,7 +27,7 @@ and editable PDF reconstruction remain outstanding.
 
 PR #7 added trusted lock refresh. PRs #1 and #2 update full-SHA Actions pins. PR #3 retains MIT
 PDFsharp 6.2.4 and updates Magick.NET independently of the proposed AGPL-3.0-only PDFsharp 6.5.0.
-See GitHub for the review and check state of each dependency head.
+PRs #1–#5 and #7 merged after hosted checks. Hashing and Pkcs 11.0.0 provide net10.0 assemblies.
 Archive alert #1 remains open. The original trace reaches the streamed ZIP writer. Component validation,
 ancestor pinning and create-new writes protect entry extraction. The stage pin is released before
 directory rename and recursive failure cleanup. Ownership across those operations needs a handle-based
@@ -35,7 +35,7 @@ fix and native regression evidence. The trace is in `artifacts/verification/util
 
 ## Next actions
 
-1. Complete packaged Explorer/Desktop interaction, outside-release, visual and external clipboard acceptance.
+1. Complete remaining packaged Desktop/Explorer interaction, outside-release, visual and external clipboard acceptance.
 2. Verify clean Windows installation, real installed upgrades and licensing before public distribution.
 3. Complete archive staging ownership and rerun CodeQL against the fix.
 4. Validate Finder gestures, Mac rendering, contextual tools, permissions, packaging and updates on macOS.

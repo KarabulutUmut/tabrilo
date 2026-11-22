@@ -47,6 +47,7 @@ public partial class MainWindow : Window
         desktop.Tray(preferences.UseTray);
         drag = new(() => state.Busy ? [] : preferences.ModeKeys, (point, mode) =>
         {
+            if (wheel is { IsEnding: true } ending) ending.Close();
             if (wheel is { } existing) existing.Switch(mode);
             else OpenWheel([], point, mode: mode);
         }, (escaped, point) => wheel?.EndGesture(escaped, point));
@@ -126,7 +127,7 @@ public partial class MainWindow : Window
                     var picker = new OpenFileDialog
                     {
                         Multiselect = true,
-                        Filter = "Tabrilo files|*.jpg;*.jpeg;*.png;*.webp;*.bmp;*.tif;*.tiff;*.heic;*.heif;*.pdf;*.zip;*.tar;*.gz;*.tgz;*.rar|All files|*.*"
+                        Filter = "Tabrilo files|*.jpg;*.jpeg;*.png;*.webp;*.bmp;*.tif;*.tiff;*.heic;*.heif;*.pdf;*.docx;*.pptx;*.zip;*.tar;*.gz;*.tgz;*.rar|All files|*.*"
                     };
                     if (picker.ShowDialog(this) == true) Add(picker.FileNames);
                     return;
@@ -328,6 +329,14 @@ public partial class MainWindow : Window
             }
         }
         panel.Children.Add(operations);
+        var inputs = CurrentInputs();
+        var more = new WrapPanel();
+        foreach (var command in Commands.All.Where(item => item.Id is "image.info" or "pdf.info" or "image.pdf" or "image.share" or "pdf.images"))
+            if (command.AppliesTo(inputs) && (inputs.Length == 1 || command.Id == "image.pdf"))
+                more.Children.Add(Controls.Button(command.Label, () => _ = Dispatch(command.Id)));
+        if (applicable.Any(command => command.Id == "image.compress"))
+            more.Children.Add(Controls.Button("Compression settings…", () => _ = RunSelected("image.compress", new(Advanced: true))));
+        if (more.Children.Count > 0) panel.Children.Add(new Expander { Header = "More options", Content = more });
         return panel;
     }
 

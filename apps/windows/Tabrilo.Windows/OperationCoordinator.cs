@@ -57,7 +57,7 @@ internal sealed class OperationCoordinator(
         {
             if (id.StartsWith("action.", StringComparison.Ordinal))
             {
-                var summary = await actions.Execute(id, paths, owner(origin), Publish);
+                var summary = await actions.Execute(id, paths, owner(origin), stop.Token, Publish);
                 Begin().Finish(summary);
             }
             else if (QuickOperations.Handles(id))

@@ -3,6 +3,7 @@ import AppKit
 struct WheelSpec: Decodable {
     let version: Int
     let diameter, innerRadius, outerRadius: Double
+    let symbols: [String: String]
     let bindings, conversion, tools, actions: [String]
 
     func sector(_ point: NSPoint, count: Int) -> Int? {
@@ -21,6 +22,7 @@ struct WheelSpec: Decodable {
 final class RingView: NSView {
     let spec: WheelSpec
     var labels: [String] = []
+    var symbols: [String] = []
     var center = ""
     var highlight: Int? { didSet { needsDisplay = true } }
     var inspect: ((NSDraggingInfo, Int?) -> Bool)?
@@ -67,7 +69,7 @@ final class RingView: NSView {
             sector.lineWidth = index == highlight ? 2.5 : 0.6
             sector.stroke()
             let r = (spec.innerRadius + spec.outerRadius) / 2
-            drawText(label, at: NSPoint(x: mid.x + r * cos(angle * .pi / 180), y: mid.y + r * sin(angle * .pi / 180)))
+            drawText(symbols[index] + "\n" + label, at: NSPoint(x: mid.x + r * cos(angle * .pi / 180), y: mid.y + r * sin(angle * .pi / 180)))
         }
         drawText(center, at: mid)
     }
@@ -119,7 +121,7 @@ final class DragWheel {
         ring.inspect = { [weak self] sender, _ in self?.acquire(sender) ?? false }
         ring.drop = { [weak self] sender, slot in
             guard let self, !self.cancelled, self.acquire(sender), let slot,
-                !self.released || self.releaseSlot == slot, self.commands.indices.contains(slot) else { self?.cancel(); return false }
+                NSEvent.pressedMouseButtons & 1 == 0, !self.released || self.releaseSlot == slot, self.commands.indices.contains(slot) else { self?.cancel(); return false }
             let id = self.commands[slot], urls = self.files
             self.cancel()
             DispatchQueue.main.async { self.dispatch?(id, urls) }
@@ -156,7 +158,10 @@ final class DragWheel {
     }
     private func poll() {
         guard !keyboard, origin != nil, !cancelled else { return }
-        if NSEvent.pressedMouseButtons & 1 == 0 { release(NSEvent.mouseLocation) }
+        if NSEvent.pressedMouseButtons & 1 == 0 {
+            // Without a recorded edge, only AppKit’s native drop position can authorize a commit.
+            if !released { cancel() }
+        }
         else { flags(NSEvent.modifierFlags) }
     }
     private func flags(_ flags: NSEvent.ModifierFlags) {
@@ -235,8 +240,16 @@ final class DragWheel {
         panel.orderFrontRegardless()
     }
     private func rebuild() {
-        commands = mode == 2 ? spec.actions : mode == 0 ? MacExports.targets(files, spec: spec) : []
-        ring.labels = commands.map { id in catalog.commands.first { $0.id == id }?.label ?? id }
+        commands = mode == 2 ? spec.actions : mode == 0 ? MacExports.targets(files, spec: spec) : MacExports.tools(files, spec: spec)
+        ring.labels = commands.map { id in
+            switch id {
+            case "image.compress": return "Compress"
+            case "image.metadata", "pdf.metadata": return "Metadata"
+            default: return catalog.commands.first { $0.id == id }?.label ?? id
+            }
+        }
+        ring.symbols = commands.map { spec.symbols[$0] ?? "" }
+        ring.setAccessibilityLabel(ring.labels.joined(separator: ", "))
         ring.center = commands.isEmpty ? "No " + ["formats","tools","actions"][mode] : ["Convert","Tools","Actions"][mode]
         ring.highlight = keyboard && !commands.isEmpty ? 0 : nil
         ring.needsDisplay = true

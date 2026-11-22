@@ -21,9 +21,9 @@ public static class OperationRouting
 {
     public static Presentation For(string command, bool advanced = false) => command switch
     {
-        "image.convert" or "image.compress" or "image.pdf" or "pdf.merge" or "pdf.split" or "pdf.images"
+        "image.pdf" or "pdf.merge" or "pdf.split" or "pdf.images"
             or "pdf.metadata" => Presentation.Choices,
-        "pdf.compress" or "qr.read" when advanced => Presentation.Choices,
+        "image.compress" or "pdf.compress" or "qr.read" when advanced => Presentation.Choices,
         "image.crop" or "image.redact" or "image.annotate" or "image.edit" or "image.frame"
             or "image.share" or "pdf.organize" => Presentation.Editor,
         "image.info" or "pdf.info" => Presentation.Information,

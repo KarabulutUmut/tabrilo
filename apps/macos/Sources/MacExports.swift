@@ -27,6 +27,33 @@ enum MacExports {
         }
     }
 
+    static func tools(_ urls: [URL], spec: WheelSpec) -> [String] {
+        guard !urls.isEmpty, urls.allSatisfy({ !$0.hasDirectoryPath }) else { return [] }
+        let imageOnly = urls.allSatisfy { imageExtensions.contains($0.pathExtension.lowercased()) }
+        return spec.tools.filter { id in
+            switch id {
+            case "image.compress", "image.metadata": return imageOnly
+            case "pdf.metadata": return urls.count == 1 && urls[0].pathExtension.lowercased() == "pdf"
+            default: return false
+            }
+        }
+    }
+
+    static func pdfInformation(_ url: URL) throws -> String {
+        guard let document = CGPDFDocument(url as CFURL), document.isUnlocked else { throw FileProblem("Choose an unlocked PDF.") }
+        var fields = ["\(document.numberOfPages) pages"]
+        if let info = document.info {
+            for key in ["Title", "Author", "Subject", "Creator", "Producer"] {
+                var value: CGPDFStringRef?
+                if CGPDFDictionaryGetString(info, key, &value), let value,
+                    let text = CGPDFStringCopyTextString(value) {
+                    fields.append(key + " · " + String((text as String).prefix(250)))
+                }
+            }
+        }
+        return fields.joined(separator: "\n")
+    }
+
     private static func image(_ url: URL) throws -> CGImage {
         guard let src = CGImageSourceCreateWithURL(url as CFURL, nil), CGImageSourceGetCount(src) == 1,
             let meta = CGImageSourceCopyPropertiesAtIndex(src,0,nil) as? [CFString: Any],
@@ -70,7 +97,10 @@ enum MacExports {
 
     static func run(_ id: String, urls: [URL], combined: URL?) throws -> [URL] {
         let fm = FileManager.default
-        let isPDF = id == "convert.pdf", jpg = id == "convert.jpg"
+        guard ["convert.pdf", "convert.png", "convert.jpg", "image.compress", "image.metadata"].contains(id) else {
+            throw FileProblem("Unknown export.")
+        }
+        let isPDF = id == "convert.pdf"
         var outputs: [URL] = []
         for url in isPDF ? Array(urls.prefix(1)) : urls {
             try Task.checkCancellation()
@@ -78,6 +108,8 @@ enum MacExports {
             let stage = parent.appendingPathComponent(".tabrilo-" + UUID().uuidString, isDirectory: true)
             try fm.createDirectory(at:stage,withIntermediateDirectories:false,attributes:[.posixPermissions:0o700])
             defer { try? fm.removeItem(at:stage) }
+            let ext = url.pathExtension.lowercased()
+            let jpg = id == "convert.jpg" || (id == "image.compress" && ["jpg", "jpeg"].contains(ext))
             let stem = url.deletingPathExtension().lastPathComponent
             let draft = stage.appendingPathComponent("output")
             if isPDF {
@@ -118,7 +150,13 @@ enum MacExports {
                 outputs.append(try publish(draft,parent:parent,stem:stem+(doc.numberOfPages > 1 ? " pages":""),ext:doc.numberOfPages > 1 ? "" : jpg ? ".jpg":".png"))
             } else {
                 try save(try image(url),to:draft,jpg:jpg)
-                outputs.append(try publish(draft,parent:parent,stem:stem,ext:jpg ? ".jpg":".png"))
+                if id == "image.compress" {
+                    let sourceBytes = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize
+                    let encodedBytes = try draft.resourceValues(forKeys: [.fileSizeKey]).fileSize
+                    guard let sourceBytes, let encodedBytes, encodedBytes < sourceBytes else { continue }
+                }
+                let suffix = id == "image.compress" ? " compressed" : id == "image.metadata" ? " clean" : ""
+                outputs.append(try publish(draft,parent:parent,stem:stem + suffix,ext:jpg ? ".jpg":".png"))
             }
         }
         return outputs

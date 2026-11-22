@@ -37,6 +37,7 @@ internal sealed class Wheel : Window
     private readonly DropRelease completion = new();
     private DragState dragState;
     private bool released;
+    internal bool IsEnding => external && released;
     private readonly DispatcherTimer deadline = new();
     private bool closed;
 
@@ -64,14 +65,14 @@ internal sealed class Wheel : Window
         KeyboardNavigation.SetTabNavigation(canvas, KeyboardNavigationMode.Cycle);
         var disk = new System.Windows.Shapes.Ellipse
         {
-            Width = Diameter, Height = Diameter, Fill = Disk, Stroke = Rim, StrokeThickness = 1.5,
+            Width = Diameter, Height = Diameter, Fill = SystemParameters.HighContrast ? SystemColors.WindowBrush : Disk, Stroke = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : Rim, StrokeThickness = 1.5,
             IsHitTestVisible = false
         };
         canvas.Children.Add(disk);
         hint = new TextBlock
         {
             Width = 91, Height = 58, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
-            Foreground = Muted, FontSize = 12, IsHitTestVisible = false,
+            Foreground = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : Muted, FontSize = 12, IsHitTestVisible = false,
             Text = external ? "Waiting for dragged files" : "Choose an action\nEsc to cancel"
         };
         Canvas.SetLeft(hint, Center - hint.Width / 2);
@@ -137,20 +138,15 @@ internal sealed class Wheel : Window
     {
         var angle = -Math.PI / 2 + index * Math.Tau / sectors;
         var midpoint = At(angle, (Inner + Outer) / 2 + 6);
-        var glyph = command switch
-        {
-            "image.convert" => "⇄", "image.compress" or "pdf.compress" => "▣", "image.redact" => "■",
-            "image.crop" => "⌑", "qr.read" => "▦", "archive.extract" => "↓", "action.share" => "↗", "action.float" => "◇", "action.copy" => "▣", "action.move" => "→",
-            "action.path" => "⌁", "action.terminal" => ">_", _ => "·"
-        };
+        var glyph = WheelCatalog.Shared.Symbols[command];
         var shape = new System.Windows.Shapes.Path
         {
-            Data = Sector(index, sectors), Fill = Segment, Stroke = Rim, StrokeThickness = 1, IsHitTestVisible = !external
+            Data = Sector(index, sectors), Fill = SystemParameters.HighContrast ? SystemColors.WindowBrush : Segment, Stroke = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : Rim, StrokeThickness = 1, IsHitTestVisible = !external
         };
         var text = new TextBlock
         {
             Text = glyph + "\n" + label, FontSize = 11.5, FontWeight = FontWeights.SemiBold, LineHeight = 14,
-            Foreground = available ? Brushes.White : Muted, TextWrapping = TextWrapping.Wrap, Width = 87,
+            Foreground = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : available ? Brushes.White : Muted, TextWrapping = TextWrapping.Wrap, Width = 87,
             TextAlignment = TextAlignment.Center, IsHitTestVisible = false
         };
         var interior = new Canvas { Width = Diameter, Height = Diameter };
@@ -180,8 +176,8 @@ internal sealed class Wheel : Window
     private static void Paint(Slot slot, bool active)
     {
         active &= slot.Button.IsEnabled;
-        slot.Path.Fill = active ? Selected : Segment;
-        slot.Path.Stroke = active ? Mint : Rim;
+        slot.Path.Fill = SystemParameters.HighContrast ? SystemColors.WindowBrush : active ? Selected : Segment;
+        slot.Path.Stroke = SystemParameters.HighContrast ? (active ? SystemColors.HighlightBrush : SystemColors.WindowTextBrush) : active ? Mint : Rim;
         slot.Path.StrokeThickness = active ? 2.5 : 1;
     }
 

@@ -194,13 +194,18 @@ internal sealed class Workflows(Window? owner, Func<KeyEventArgs, string, bool> 
         if (options is null) return;
         var folder = await destination.Combined();
         using var document = await pdf.OpenForRenderingAsync(input, unlocked.Value.Password, token);
-        var names = options.Pages.ToDictionary(page => $"{Path.GetFileNameWithoutExtension(input)} page {page}", page => page);
-        var result = await Jobs.RunAsync(names.Keys.ToArray(), async (name, cancel) =>
+        var stem = Path.GetFileNameWithoutExtension(input);
+        IProgress<JobProgress> progress = Progress();
+        async Task<string> Page(string directory, int index, CancellationToken cancel)
         {
-            var page = await Pdfs.RenderPageAsync(document, names[name], options.Dpi, options.Format, cancel);
-            return new(name, await Images.SaveAsync(page, folder, name, cancel));
-        }, Progress(), token);
-        publish(result.Items);
+            var number = options.Pages[index];
+            var image = await Pdfs.RenderPageAsync(document, number, options.Dpi, options.Format, cancel);
+            progress.Report(new(index + 1, options.Pages.Length, $"Rendering page {number}"));
+            return await Images.SaveAsync(image, directory, options.Pages.Length == 1 ? $"{stem} page {number}" : $"Page {number:D4}", cancel);
+        }
+        var output = options.Pages.Length == 1 ? await Page(folder, 0, token) :
+            await OutputGroup.WriteAsync(folder, stem + " pages", options.Pages.Length, Page, token);
+        publish([new(input, output)]);
     }
 
     private PdfPages? AskPages(string label, int total) => Dialogs.Ask<PdfPages>(owner, label, panel =>

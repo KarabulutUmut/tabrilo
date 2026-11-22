@@ -16,12 +16,11 @@ internal sealed class QuickOperations(OperationContext context, Window? owner, P
     private const int DefaultQrPages = 24;
     private const int BatchQrPages = 96;
     private readonly Pdfs pdf = new(Path.Combine(AppContext.BaseDirectory, "tools", "qpdf", "qpdf.exe"));
-    private sealed record FormatChoice(ImageFormat Format, bool ChangeDestination);
     private sealed record PresetChoice(int Index, bool ChangeDestination);
     private sealed record CompressionChoice(ImageOptions? Advanced, bool Gentle, bool ChangeDestination);
     private sealed record PdfCompression(int Quality);
 
-    public static bool Handles(string command) => command is "image.convert" or "image.compress" or "image.metadata"
+    public static bool Handles(string command) => command is "image.compress" or "image.metadata"
         or "pdf.compress" or "archive.extract" or "qr.read" or "convert.pdf" or "convert.png" or "convert.jpg" or "convert.webp";
 
     public async Task Execute(Presentation presentation)
@@ -44,12 +43,6 @@ internal sealed class QuickOperations(OperationContext context, Window? owner, P
         PdfCompression? advancedPdf = null;
         switch (id)
         {
-            case "image.convert":
-                var format = ChooseFormat();
-                if (format is null) return;
-                changeDestination |= format.ChangeDestination;
-                imageOptions = _ => ConvertTo(format.Format);
-                break;
             case "image.compress":
                 if (!context.Request.Advanced) { imageOptions = input => CompressImage(input, false); break; }
                 var compression = ChooseCompression();
@@ -153,26 +146,6 @@ internal sealed class QuickOperations(OperationContext context, Window? owner, P
         }, new Progress<JobProgress>(view.Update), token);
         publish(outcomes.Items);
     }
-
-    private FormatChoice? ChooseFormat() => Dialogs.Ask<FormatChoice>(owner, "Convert image", panel =>
-    {
-        panel.Children.Add(Controls.Text("JPEG fills transparent areas with white.", 13, true));
-        var change = Controls.Checkbox(panel, "Change destination", false);
-        var actions = new System.Windows.Controls.WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
-        panel.Children.Add(actions);
-        FormatChoice? choice = null;
-        foreach (var (format, label) in new[] { (ImageFormat.Png, "PNG"), (ImageFormat.Jpeg, "JPEG"), (ImageFormat.WebP, "WebP") })
-        {
-            var option = Controls.Button(label, () =>
-            {
-                choice = new(format, change.IsChecked == true);
-                if (Window.GetWindow(actions) is { } window) window.DialogResult = true;
-            }, format == ImageFormat.Jpeg);
-            option.IsDefault = format == ImageFormat.Jpeg;
-            actions.Children.Add(option);
-        }
-        return () => choice!;
-    }, button: "", height: 245);
 
     private CompressionChoice? ChooseCompression()
     {

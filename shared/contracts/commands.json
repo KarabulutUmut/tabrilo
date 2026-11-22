@@ -58,15 +58,6 @@
       "kinds": []
     },
     {
-      "id": "image.convert",
-      "label": "Convert",
-      "scope": "operation",
-      "shortcut": null,
-      "kinds": [
-        "image"
-      ]
-    },
-    {
       "id": "image.compress",
       "label": "Compress image",
       "scope": "operation",

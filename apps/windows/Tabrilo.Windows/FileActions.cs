@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -27,7 +28,7 @@ internal sealed class FileActions : IDisposable
     private IStorageItem[] shareItems = [];
     private readonly ObservableCollection<string> references = [];
 
-    public async Task<string> Execute(string id, string[] paths, Window? owner, Action<IReadOnlyList<FileOutcome>> publish)
+    public async Task<string> Execute(string id, string[] paths, Window? owner, CancellationToken token, Action<IReadOnlyList<FileOutcome>> publish)
     {
         if (paths.Any(path => !File.Exists(path) && !Directory.Exists(path))) throw new IOException("A selected item is no longer available.");
         switch (id)
@@ -58,20 +59,16 @@ internal sealed class FileActions : IDisposable
             case "action.move":
                 var picker = new OpenFolderDialog { Title = "Move selected items to" };
                 if ((owner?.IsVisible == true ? picker.ShowDialog(owner) : picker.ShowDialog()) != true) return "Cancelled";
-                var results = new List<FileOutcome>();
-                foreach (var path in paths)
+                var destination = picker.FolderName;
+                var completion = new TaskCompletionSource<List<FileOutcome>>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var worker = new Thread(() =>
                 {
-                    var target = Path.Combine(picker.FolderName, Path.GetFileName(Path.TrimEndingDirectorySeparator(path)));
-                    try
-                    {
-                        if (File.Exists(target) || Directory.Exists(target)) throw new IOException("An item with that name already exists.");
-                        if (Directory.Exists(path)) FileSystem.MoveDirectory(path, target, UIOption.AllDialogs, UICancelOption.ThrowException);
-                        else FileSystem.MoveFile(path, target, UIOption.AllDialogs, UICancelOption.ThrowException);
-                        results.Add(new(path, target));
-                    }
-                    catch (OperationCanceledException) { results.Add(new(path, null, "Move cancelled", true)); break; }
-                    catch (Exception error) when (OperationCoordinator.IsOperationError(error)) { results.Add(new(path, null, error.Message)); }
-                }
+                    try { completion.SetResult(Move(paths, destination, token)); }
+                    catch (Exception error) { completion.SetException(error); }
+                }) { IsBackground = true };
+                worker.SetApartmentState(ApartmentState.STA);
+                worker.Start();
+                var results = await completion.Task;
                 publish(results);
                 return $"{results.Count(item => item.Output != null)}/{paths.Length} moved";
             case "action.share":
@@ -94,6 +91,31 @@ internal sealed class FileActions : IDisposable
                 return "Windows share opened";
             default: throw new ArgumentException("Unknown file action.");
         }
+    }
+
+    private static List<FileOutcome> Move(string[] paths, string destination, CancellationToken token)
+    {
+        var results = new List<FileOutcome>(paths.Length);
+        var cancelled = false;
+        foreach (var path in paths)
+        {
+            if (cancelled || token.IsCancellationRequested)
+            {
+                results.Add(new(path, null, "Skipped after cancellation", true));
+                continue;
+            }
+            var target = Path.Combine(destination, Path.GetFileName(Path.TrimEndingDirectorySeparator(path)));
+            try
+            {
+                if (File.Exists(target) || Directory.Exists(target)) throw new IOException("An item with that name already exists.");
+                if (Directory.Exists(path)) FileSystem.MoveDirectory(path, target, UIOption.AllDialogs, UICancelOption.ThrowException);
+                else FileSystem.MoveFile(path, target, UIOption.AllDialogs, UICancelOption.ThrowException);
+                results.Add(new(path, target, "Moved"));
+            }
+            catch (OperationCanceledException) { cancelled = true; results.Add(new(path, null, "Move cancelled", true)); }
+            catch (Exception error) when (OperationCoordinator.IsOperationError(error)) { results.Add(new(path, null, error.Message)); }
+        }
+        return results;
     }
 
     private void OnShare(DataTransferManager sender, DataRequestedEventArgs args)
