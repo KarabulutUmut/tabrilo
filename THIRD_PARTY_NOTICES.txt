@@ -5,7 +5,7 @@ the locked NuGet packages, the qpdf release, .NET runtime notices and the NSIS
 COPYING file. Exact versions and asset SHA-256 digests are in shared/dependencies.json.
 NuGet package content hashes and transitive dependencies are in packages.lock.json.
 
-Magick.NET 15.0.0, copyright Dirk Lemstra. Apache-2.0 wrapper.
+Magick.NET 15.1.0, copyright Dirk Lemstra. Apache-2.0 wrapper.
 The upstream Notice.txt supplies the bundled ImageMagick and native codec terms.
 The vendor's native builds are tracked at https://github.com/dlemstra/Magick.Native.
 The native bundle includes LGPL components. Review corresponding source and

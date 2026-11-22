@@ -3,11 +3,11 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Magick.NET-Q8-x64" Version="[15.0.0]" />
+    <PackageVersion Include="Magick.NET-Q8-x64" Version="[15.1.0]" />
     <PackageVersion Include="NetSparkleUpdater.SparkleUpdater" Version="[3.1.0]" />
     <PackageVersion Include="PDFsharp" Version="[6.2.4]" />
     <PackageVersion Include="SharpCompress" Version="[0.50.9]" />
-    <PackageVersion Include="System.IO.Hashing" Version="[10.0.15]" />
+    <PackageVersion Include="System.IO.Hashing" Version="[11.0.0]" />
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="[10.0.15]" />
     <PackageVersion Include="ZXing.Net" Version="[0.16.11]" />
   </ItemGroup>

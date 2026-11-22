@@ -42,7 +42,7 @@
   "nuget": [
     {
       "id": "Magick.NET-Q8-x64",
-      "version": "15.0.0",
+      "version": "15.1.0",
       "license": "Apache-2.0 wrapper; native component licenses in package Notice.txt including LGPL",
       "purpose": "Raster codecs, transforms and color",
       "source": "https://github.com/dlemstra/Magick.NET"
@@ -77,7 +77,7 @@
     },
     {
       "id": "System.IO.Hashing",
-      "version": "10.0.15",
+      "version": "11.0.0",
       "license": "MIT",
       "purpose": "Streamed ZIP CRC-32 integrity checks",
       "source": "https://github.com/dotnet/runtime"
