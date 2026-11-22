@@ -4,7 +4,7 @@
 
 Tabrilo is a native desktop toolkit for working locally with images, PDFs, QR
 codes and archives. The Windows development build uses WPF and .NET 10. The
-macOS follow-up has an AppKit shell and shared command contracts.
+macOS follow-up has an AppKit wheel and native image/PDF and file-action adapters.
 
 Tabrilo is in development and has no approved public release. See
 [STATUS.md](STATUS.md) for verification and remaining acceptance work.
@@ -60,19 +60,23 @@ editable SVG.
 
 ## First run
 
-Choose files, drop them into Home, or paste an image or file selection
-explicitly. Available actions depend on the input types. Ctrl+Space opens the
-keyboard action wheel. The default Explorer wheel gesture is Shift while
-dragging with the primary button while Tabrilo is running. Closing Home quits
-Tabrilo unless you enable the notification-area option in Settings.
+With Tabrilo running, drag files in Explorer and tap a mode key. Shift shows
+formats, Ctrl shows relevant tools, and Alt shows Share, Float, Copy, Move,
+Copy Path and Terminal. Release the key and drop on a slice. Releasing over
+the center, a gap, or outside cancels the wheel. Escape cancels the held drag.
+Ctrl+Space opens the keyboard wheel for Home’s selection. Use arrows and Enter.
+Closing Home keeps the app in the notification area when tray mode is enabled.
+Choose **Quit Tabrilo** from its tray menu before launching another build.
 
-Convert opens a PNG, JPEG and WebP chooser. Compress image uses a format-aware
-preset. Extract archive, Read QR, conservative PDF compression and image
-metadata removal can start directly. Jobs shows progress, cancellation, and
-completed paths. Ordinary exports use a new name beside their sources unless
-you set an export folder. Choose a clipboard export folder in Settings or
-when first exporting pasted data. Combined exports from different directories
-ask for one destination.
+Conversions write beside each source. JPG uses a white background and quality
+88 by default. PDF pages render at 150 DPI. Multiple pages or split parts go
+into a new sibling folder. Combined images use full-path order and ask for
+a destination when their parents differ. Jobs is available on request.
+
+DOCX and PPTX render with a local LibreOffice engine. Configure its
+`soffice.com` in Settings or package with `-IncludeOffice` using the pinned
+MSI in `.tools`. This optional development payload includes the engine.
+Editable PDF-to-Office reconstruction and public distribution remain open.
 
 In Redact, drag to draw a mask, drag the mask to move it, or drag a corner to
 resize it. Use Delete to remove the selected region. Copy result processes the
@@ -95,7 +99,7 @@ redistribution still require review and owner approval.
 ## macOS foundation
 
 `sh apps/macos/build.sh` describes the build entry on a Mac with Xcode Command
-Line Tools. The AppKit shell and catalog loading await a Mac build. See
+Line Tools. The bundle uses AppKit, Core Graphics and Image I/O. Finder acceptance requires a Mac desktop. See
 [STATUS.md](STATUS.md) for the Mac handoff.
 
 ## Licensing and specification

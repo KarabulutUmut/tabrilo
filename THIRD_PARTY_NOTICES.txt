@@ -22,3 +22,7 @@ The published self-contained .NET Desktop 10.0.15 runtime includes Microsoft and
 third-party components. See the upstream runtime license and third-party notices.
 Windows.Data.Pdf is a system component supplied by Windows.
 
+Optional local Office builds include LibreOffice 26.8.3 by The Document Foundation.
+See tools/office/license.txt, LICENSE.html, NOTICE and CREDITS.fodt for the
+MPL-2.0 and bundled component terms. Review source availability and redistribution
+obligations before distributing this development build.

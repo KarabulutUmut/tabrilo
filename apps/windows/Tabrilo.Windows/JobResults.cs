@@ -13,6 +13,26 @@ internal sealed class JobResults : IDisposable
 {
     private readonly StackPanel jobs = new() { Margin = new Thickness(16) };
     private readonly Window window;
+    private Window? notice;
+
+    private void Notify(string text, string button, Action click, string? output = null)
+    {
+        notice?.Close();
+        var panel = new StackPanel { Margin = new Thickness(12) };
+        panel.Children.Add(Controls.Text(text));
+        var buttons = new WrapPanel();
+        buttons.Children.Add(Controls.Button(button, click));
+        if (output != null) buttons.Children.Add(Controls.Button("Reveal", () => Desktop.Reveal(output)));
+        buttons.Children.Add(Controls.Button("Dismiss", () => notice?.Close()));
+        panel.Children.Add(buttons);
+        var area = SystemParameters.WorkArea;
+        var popup = new Window { Title = "Tabrilo", Content = panel, Width = 340, SizeToContent = SizeToContent.Height,
+            WindowStyle = WindowStyle.ToolWindow, ResizeMode = ResizeMode.NoResize, Topmost = true, ShowActivated = false,
+            ShowInTaskbar = false, Left = Math.Max(area.Left, area.Right - 350), Top = Math.Max(area.Top, area.Bottom - 155) };
+        notice = popup;
+        popup.Closed += (_, _) => { if (notice == popup) notice = null; };
+        popup.Show();
+    }
 
     public JobResults()
     {
@@ -36,7 +56,8 @@ internal sealed class JobResults : IDisposable
         var details = new StackPanel { Margin = new Thickness(8) };
         var entry = new Expander { Header = label, IsExpanded = true, Content = details, Margin = new Thickness(0, 4, 0, 6) };
         jobs.Children.Insert(0, entry);
-        if (!window.IsVisible) window.Show();
+        while (jobs.Children.Count > 50) jobs.Children.RemoveAt(50);
+        Notify(label + "…", "Cancel", cancel);
         return new JobView(this, entry, details, label, cancel);
     }
 
@@ -48,6 +69,7 @@ internal sealed class JobResults : IDisposable
 
     public void Dispose()
     {
+        notice?.Close();
         window.Closing -= Hide;
         window.Close();
     }
@@ -85,7 +107,7 @@ internal sealed class JobResults : IDisposable
             bar.Value = progress.Completed;
         }
 
-        public void Finish(string summary, Action<Panel>? write = null)
+        public void Finish(string summary, Action<Panel>? write = null, string? output = null)
         {
             if (finished) return;
             finished = true;
@@ -93,6 +115,7 @@ internal sealed class JobResults : IDisposable
             entry.Header = $"{label} · {summary}";
             panel.Children.Clear();
             write?.Invoke(panel);
+            owner.Notify(label + " · " + summary, "Details", owner.Open, output);
             panel.Children.Add(Controls.Button("Dismiss", () =>
             {
                 owner.jobs.Children.Remove(entry);
@@ -103,7 +126,7 @@ internal sealed class JobResults : IDisposable
         public void Files(IReadOnlyList<FileOutcome> outcomes)
         {
             var published = outcomes.Count(item => item.Output is not null);
-            var summary = $"{published}/{outcomes.Count} published";
+            var summary = published == 0 && outcomes.FirstOrDefault()?.Message is { } reason ? reason : $"{published}/{outcomes.Count} published";
             Finish(summary, content =>
             {
                 foreach (var result in outcomes)
@@ -119,7 +142,7 @@ internal sealed class JobResults : IDisposable
                     content.Children.Add(actions);
                     content.Children.Add(error);
                 }
-            });
+            }, outcomes.FirstOrDefault(item => item.Output != null)?.Output);
         }
 
         public void Codes(IReadOnlyList<(string Name, QrResult Result)> codes, IReadOnlyList<string> notes)

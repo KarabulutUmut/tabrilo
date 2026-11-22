@@ -13,8 +13,8 @@ Only opted-in update checks/downloads and explicitly confirmed external links ma
 
 ## Exclusions
 
-No audio/video tools, collages, RAW development, PSD editing, animated-image editing, arbitrary SVG execution, or Office conversion.
-No web downloader, window tiling, floating file shelf, cloud storage/sync, analytics, advertising, subscriptions, or required AI.
+No audio/video tools, collages, RAW development, PSD editing, animated-image editing, or arbitrary SVG execution.
+No web downloader, window tiling, cloud storage/sync, analytics, advertising, subscriptions, or required AI.
 No archive creation, password cracking, encrypted/multipart archive support, or PDF content redaction in v1.
 No background clipboard surveillance, unsolicited startup persistence, or paid Apple membership requirement.
 Do not add adjacent features merely because a dependency supports them.
@@ -112,17 +112,22 @@ Use bounded background rendering/scanning and cancellation. Never upload files t
 
 Home, Recent results, Settings, and focused contextual editors; no dashboard clutter.
 Accept file picker, normal drag/drop, and explicit clipboard file/image paste. Preserve ordinary text-field paste.
-A native global drag gesture opens a contextual wheel near the pointer; keyboard invocation works for selected app files too.
-Provide 6-8 visible actions, stable user-pinned positions, a deliberate More path, explicit selection, and Escape cancellation.
-Quick wheel actions should execute with sensible defaults and report results in a compact surface.
-Convert offers a compact format choice. Image compression offers format-aware presets and advanced options.
-Archive extraction, QR reading, conservative PDF compression and image metadata removal use direct execution.
+Drag real files, then tap Shift for conversion formats, Control for contextual tools, or Alt/Option for six file actions.
+Tap another key to switch in place. Releasing a modifier keeps the wheel open. The wheel stays at its invocation point.
+Release on an enabled slice to commit once. Escape or releasing the primary button elsewhere cancels that drag.
+Moving out while held permits returning. Copy-like drops must never request a destructive native move.
+From the top clockwise, Actions contains Share, Float, Copy, Move, Copy Path and Terminal for files and folders.
+Float holds up to 64 temporary references. Only the explicit Move action changes the source location.
+Shift offers JPG/PNG and PDF for still images, and PNG/JPG for PDF pages. Omit same-format targets.
+DOCX/PPTX offer PDF and page images with a configured local layout engine. Editable PDF reconstruction remains outstanding.
+Several images form one PDF in deterministic path order. Several PDF exports use separate source-adjacent folders.
+Compress, extract, QR and default conversion run directly. Display compact cancellable progress and completion.
 Open a focused editor when an operation needs selection, configuration, or preview.
 Ordinary Explorer/Finder dragging must remain unaffected when the gesture is not activated.
 Mixed selections must show valid common operations or clear unsupported-selection explanations.
 Use configurable semantic shortcuts with Ctrl/Command conventions, conflict detection, and normal editing preservation.
 Include light/dark/system themes, reduced motion, keyboard focus, screen-reader labels, and usable text scaling.
-Tray/menu-bar mode and launch-at-login are explicit preferences; default startup persistence off.
+Keep background mode discoverable with a Quit command. Launch at login requires an explicit preference.
 Recent results keep at most 50 local result references, not copies of all inputs; users can disable/clear them.
 No persistent unredacted thumbnails. Missing files are shown without deleting originals or fabricating results.
 

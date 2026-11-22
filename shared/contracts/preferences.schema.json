@@ -6,8 +6,11 @@
   ],
   "properties": {
     "version": {
-      "const": 1
+      "enum": [1, 2]
     },
+    "modeKeys": { "type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": { "enum": ["Shift", "Ctrl", "Alt"] } },
+    "showWebP": { "type": "boolean" },
+    "officeExecutable": { "type": ["string", "null"] },
     "appearance": {
       "enum": [
         "System",

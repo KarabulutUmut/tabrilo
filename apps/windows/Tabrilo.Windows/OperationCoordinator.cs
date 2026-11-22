@@ -24,13 +24,14 @@ internal sealed class OperationCoordinator(
     Func<KeyEventArgs, string, bool> keys, Action<bool> busy, Action<string> status,
     Action<string, IEnumerable<string>> publish) : IDisposable
 {
+    private readonly FileActions actions = new();
     private readonly JobResults results = new();
     private CancellationTokenSource? cancellation;
     public bool Busy => cancellation is not null;
     public void Cancel() => cancellation?.Cancel();
     public void ShowResults() => results.Open();
     public bool OwnsResults(Window candidate) => results.Owns(candidate);
-    public void Dispose() => results.Dispose();
+    public void Dispose() { actions.Dispose(); results.Dispose(); }
 
     public async Task RunAsync(string id, IEnumerable<OperationInput> inputs, InvocationOrigin origin, OperationRequest? request = null)
     {
@@ -54,7 +55,12 @@ internal sealed class OperationCoordinator(
         status(command.Label + "…");
         try
         {
-            if (QuickOperations.Handles(id))
+            if (id.StartsWith("action.", StringComparison.Ordinal))
+            {
+                var summary = await actions.Execute(id, paths, owner(origin), Publish);
+                Begin().Finish(summary);
+            }
+            else if (QuickOperations.Handles(id))
                 await new QuickOperations(context, owner(origin), settings, destination, Begin, Publish).Execute(route);
             else
                 await new Workflows(owner(origin), keys, destination, progress => Begin().Update(progress), Publish)

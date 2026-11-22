@@ -12,91 +12,13 @@ using Tabrilo.Core;
 
 namespace Tabrilo.Windows;
 
-internal sealed class DragGesture : IDisposable
-{
-    private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(32) };
-    private readonly Func<string> modifier;
-    private readonly Func<string> button;
-    private readonly Action<NativePoint> open;
-    private readonly Action<bool> end;
-    private NativePoint origin;
-    private bool tracking;
-    private bool opened;
-
-    public DragGesture(Func<string> modifier, Func<string> button, Action<NativePoint> open, Action<bool> end)
-    {
-        this.modifier = modifier;
-        this.open = open;
-        this.button = button;
-        this.end = end;
-        timer.Tick += Tick;
-        timer.Start();
-    }
-
-    private void Tick(object? sender, EventArgs args)
-    {
-        var key = modifier() switch { "Shift" => 0x10, "Ctrl" => 0x11, "Alt" => 0x12, _ => 0 };
-        var primary = GetSystemMetrics(23) == 0 ? 1 : 2;
-        var pressed = Down(button() == "Secondary" ? 3 - primary : primary);
-        if (!pressed)
-        {
-            if (opened) end(false);
-            tracking = opened = false;
-            return;
-        }
-        if (Down(0x1B))
-        {
-            if (opened) end(true);
-            opened = true;
-            return;
-        }
-        if (key == 0) return;
-        if (opened || !GetCursorPos(out var point)) return;
-        if (!tracking)
-        {
-            var window = GetForegroundWindow();
-            var name = new System.Text.StringBuilder(128);
-            GetClassName(window, name, name.Capacity);
-            if (name.ToString() is not ("CabinetWClass" or "ExploreWClass" or "Progman" or "WorkerW")) return;
-            origin = point;
-            tracking = true;
-        }
-        if (Down(key) && Math.Abs(point.X - origin.X) + Math.Abs(point.Y - origin.Y) >= 20)
-        {
-            opened = true;
-            open(point);
-        }
-    }
-
-    [DllImport("user32.dll")]
-    private static extern int GetSystemMetrics(int index);
-
-    private static bool Down(int key) => (GetAsyncKeyState(key) & 0x8000) != 0;
-
-    public void Dispose() => timer.Stop();
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct NativePoint { public int X; public int Y; }
-
-    [DllImport("user32.dll")]
-    private static extern short GetAsyncKeyState(int key);
-    [DllImport("user32.dll")]
-    private static extern bool GetCursorPos(out NativePoint point);
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern int GetClassName(IntPtr window, System.Text.StringBuilder buffer, int count);
-}
-
 internal sealed class Wheel : Window
 {
-    internal const double Diameter = 328;
-    private const int Sectors = 7;
-    private const double Center = Diameter / 2;
-    private const double Inner = 53;
-    private const double Outer = 162;
-    private const string More = "navigation.more";
-    private const string Back = "navigation.back";
+    internal static double Diameter => WheelCatalog.Shared.Diameter;
+    private static double Center => Diameter / 2;
+    private static double Inner => WheelCatalog.Shared.InnerRadius;
+    private static double Outer => WheelCatalog.Shared.OuterRadius;
+    private int sectors = 6;
     private static readonly Brush Disk = Brush("#19232D");
     private static readonly Brush Segment = Brush("#253442");
     private static readonly Brush Selected = Brush("#155D57");
@@ -106,26 +28,27 @@ internal sealed class Wheel : Window
 
     private readonly bool external;
     private readonly Action<string, string[]> invoke;
-    private readonly Action<Wheel> track;
-    private readonly IReadOnlyList<string> favorites;
+    private readonly Preferences preferences;
+    private WheelMode mode;
     private readonly Canvas canvas = new() { Width = Diameter, Height = Diameter };
     private readonly List<Slot> slots = [];
     private readonly TextBlock hint;
     private string[] files;
-    private int group;
+    private readonly DropRelease completion = new();
     private DragState dragState;
     private bool released;
+    private readonly DispatcherTimer deadline = new();
     private bool closed;
 
     private enum DragState { Proposed, Acquired, Outside, Committed, Cancelled }
     private sealed record Slot(int Index, string Command, Button Button, System.Windows.Shapes.Path Path);
 
-    public Wheel(string[] files, IReadOnlyList<string> favorites, Action<string, string[]> invoke, bool external, Action<Wheel> track)
+    public Wheel(string[] files, Preferences preferences, WheelMode mode, Action<string, string[]> invoke, bool external)
     {
         this.files = files;
-        this.favorites = favorites;
+        this.preferences = preferences;
+        this.mode = mode;
         this.invoke = invoke;
-        this.track = track;
         this.external = external;
         Title = "Tabrilo actions";
         Width = Height = Diameter;
@@ -156,7 +79,15 @@ internal sealed class Wheel : Window
         canvas.Children.Add(hint);
         canvas.Background = Brushes.Transparent;
         Content = new Viewbox { Child = canvas };
-        Closed += (_, _) => closed = true;
+        Closed += (_, _) => { closed = true; deadline.Stop(); };
+        deadline.Tick += (_, _) => Cancel();
+        if (external)
+        {
+            // A nearly transparent OLE target acquires CF_HDROP before displaying any wheel.
+            Opacity = .005;
+            deadline.Interval = TimeSpan.FromMilliseconds(550);
+            deadline.Start();
+        }
         PreviewKeyDown += Navigate;
         if (external)
         {
@@ -177,40 +108,44 @@ internal sealed class Wheel : Window
     {
         foreach (var slot in slots) canvas.Children.Remove(slot.Button);
         slots.Clear();
-        var applicable = Commands.All.Where(item => item.AppliesTo(files)).ToArray();
-        var pinned = favorites.Take(6).Select(id => Commands.All.FirstOrDefault(item => item.Id == id)).ToArray();
-        var used = pinned.OfType<CommandSpec>().Select(item => item.Id).ToHashSet();
-        var remaining = applicable.Where(item => !used.Contains(item.Id)).ToArray();
-        var start = group == 0 ? 0 : 6 - pinned.Length + (group - 1) * 5;
-        var index = 0;
-        if (group == 0)
+        var commands = WheelCatalog.Shared.For(mode, files, preferences.ShowWebP,
+            Tabrilo.Processing.OfficeRenderer.Available(preferences.OfficeExecutable));
+        sectors = Math.Max(2, commands.Length);
+        hint.Text = commands.Length == 0 ? $"No {mode.ToString().ToLowerInvariant()} for this selection" : mode.ToString();
+        for (var i = 0; i < commands.Length; i++)
         {
-            foreach (var command in pinned)
+            var command = commands[i];
+            var label = command.Id switch
             {
-                if (command is not null) Add(command.Label, command.Id, index, command.AppliesTo(files));
-                index++;
-            }
+                "image.metadata" or "pdf.metadata" => "Metadata", "pdf.compress" or "image.compress" => "Compress",
+                "image.edit" => "Edit", "pdf.organize" => "Organize", "pdf.split" => "Split",
+                "pdf.merge" => "Merge", "archive.extract" => "Extract", _ => command.Label
+            };
+            Add(label, command.Id, i, true);
         }
-        var capacity = group == 0 ? 6 : 5;
-        for (var item = start; index < capacity && item < remaining.Length; item++, index++)
-            Add(remaining[item].Label, remaining[item].Id, index, true);
-        var shown = group == 0 ? 6 - pinned.Length : 5;
-        if (group > 0) Add("Back", Back, 5, true);
-        if (remaining.Length > start + shown) Add(group == 0 ? "More" : "Next", More, 6, true);
+    }
+
+    public void Switch(WheelMode selected)
+    {
+        if (closed || released || mode == selected || dragState is DragState.Cancelled or DragState.Committed) return;
+        mode = selected;
+        Rebuild();
+        if (!external) slots.FirstOrDefault()?.Button.Focus();
     }
 
     private void Add(string label, string command, int index, bool available)
     {
-        var angle = -Math.PI / 2 + index * Math.Tau / Sectors;
+        var angle = -Math.PI / 2 + index * Math.Tau / sectors;
         var midpoint = At(angle, (Inner + Outer) / 2 + 6);
         var glyph = command switch
         {
             "image.convert" => "⇄", "image.compress" or "pdf.compress" => "▣", "image.redact" => "■",
-            "image.crop" => "⌑", "qr.read" => "▦", "archive.extract" => "↓", More => "›", Back => "‹", _ => "·"
+            "image.crop" => "⌑", "qr.read" => "▦", "archive.extract" => "↓", "action.share" => "↗", "action.float" => "◇", "action.copy" => "▣", "action.move" => "→",
+            "action.path" => "⌁", "action.terminal" => ">_", _ => "·"
         };
         var shape = new System.Windows.Shapes.Path
         {
-            Data = Sector(index), Fill = Segment, Stroke = Rim, StrokeThickness = 1, IsHitTestVisible = !external
+            Data = Sector(index, sectors), Fill = Segment, Stroke = Rim, StrokeThickness = 1, IsHitTestVisible = !external
         };
         var text = new TextBlock
         {
@@ -250,10 +185,10 @@ internal sealed class Wheel : Window
         slot.Path.StrokeThickness = active ? 2.5 : 1;
     }
 
-    internal static Geometry Sector(int index)
+    internal static Geometry Sector(int index, int sectors = 7)
     {
-        var angle = -Math.PI / 2 + index * Math.Tau / Sectors;
-        var half = Math.PI / Sectors - .026;
+        var angle = -Math.PI / 2 + index * Math.Tau / sectors;
+        var half = Math.PI / sectors - .026;
         var a = angle - half;
         var b = angle + half;
         var geometry = new StreamGeometry();
@@ -277,16 +212,22 @@ internal sealed class Wheel : Window
         args.Handled = true;
         args.Effects = DragDropEffects.None;
         if (dragState is DragState.Committed or DragState.Cancelled) return;
-        if (dragState is DragState.Proposed or DragState.Outside || args.RoutedEvent == DragEnterEvent)
+        if (!released && (dragState is DragState.Proposed or DragState.Outside || args.RoutedEvent == DragEnterEvent))
         {
-            files = (args.AllowedEffects & DragDropEffects.Copy) != 0 ? GetFiles(args.Data) : [];
-            dragState = files.Length > 0 ? DragState.Acquired : DragState.Proposed;
-            group = 0;
-            Rebuild();
+            var received = GetFiles(args.Data);
+            if (received.Length == 0 || files.Length != 0 && !received.SequenceEqual(files, StringComparer.OrdinalIgnoreCase))
+            { Cancel(); return; }
+            if (files.Length == 0)
+            {
+                files = received;
+                Rebuild();
+            }
+            dragState = DragState.Acquired;
+            deadline.Stop();
+            Opacity = 1;
         }
         var slot = FindSlot(args.GetPosition(canvas));
         foreach (var candidate in slots) Paint(candidate, candidate == slot);
-        hint.Text = files.Length == 0 ? "File drag required" : slot is null ? "Drop in center to cancel" : "Release to choose";
         if (dragState == DragState.Acquired && slot is not null && (args.AllowedEffects & DragDropEffects.Copy) != 0)
             args.Effects = DragDropEffects.Copy;
     }
@@ -295,63 +236,52 @@ internal sealed class Wheel : Window
     {
         if (dragState != DragState.Acquired) return;
         dragState = DragState.Outside;
-        files = [];
-        group = 0;
-        Rebuild();
-        hint.Text = "Drag files back here";
-        if (released) Close();
+        foreach (var slot in slots) Paint(slot, false);
+        if (released) Cancel();
     }
 
-    public void EndGesture(bool escaped)
+    private void Cancel()
     {
-        if (!external || closed || dragState == DragState.Committed) return;
-        if (escaped)
+        if (closed || dragState == DragState.Committed) return;
+        completion.Cancel();
+        dragState = DragState.Cancelled;
+        Close();
+    }
+
+    public void EndGesture(bool escaped, DragGesture.NativePoint point)
+    {
+        if (!external || closed || dragState is DragState.Committed or DragState.Cancelled) return;
+        released = true;
+        var releaseSlot = escaped ? null : FindSlot(canvas.PointFromScreen(new Point(point.X, point.Y)));
+        // Snapshot physical release coordinates even when OLE missed DragLeave. Never use the last hover.
+        completion.Release(dragState == DragState.Acquired ? releaseSlot?.Command : null);
+        if (escaped || dragState != DragState.Acquired || releaseSlot is null)
         {
             dragState = DragState.Cancelled;
-            Close();
-            return;
+            Opacity = .005;
         }
-        released = true;
-        // A source can observe mouse-up before OLE dispatches Drop. OLE owns completion after acquisition.
-        Dispatcher.BeginInvoke(() =>
-        {
-            if (!closed && dragState is DragState.Proposed or DragState.Outside) Close();
-        }, DispatcherPriority.ApplicationIdle);
+        // Keep a neutral OLE target alive until Explorer has consumed mouse-up.
+        // A valid release also has a bounded wait if the source never sends Drop.
+        deadline.Stop();
+        deadline.Interval = TimeSpan.FromMilliseconds(160);
+        deadline.Start();
     }
 
     private void OnDrop(object sender, DragEventArgs args)
     {
         args.Handled = true;
         args.Effects = DragDropEffects.None;
-        if (dragState is DragState.Committed or DragState.Cancelled) return;
+        if (closed || dragState == DragState.Committed) return;
         var received = GetFiles(args.Data);
         var slot = FindSlot(args.GetPosition(canvas));
-        var navigation = slot?.Command is More or Back;
-        if (dragState != DragState.Acquired || slot is null || !received.SequenceEqual(files, StringComparer.OrdinalIgnoreCase) ||
-            (args.AllowedEffects & DragDropEffects.Copy) == 0 ||
-            !navigation && !Commands.All.Any(command => command.Id == slot.Command && command.AppliesTo(received)))
-        {
-            dragState = DragState.Cancelled;
-            Close();
-            return;
-        }
+        if (dragState != DragState.Acquired || slot is null || !completion.TryCommit(slot.Command) ||
+            !received.SequenceEqual(files, StringComparer.OrdinalIgnoreCase) || (args.AllowedEffects & DragDropEffects.Copy) == 0)
+        { Cancel(); return; }
         dragState = DragState.Committed;
+        deadline.Stop();
         args.Effects = DragDropEffects.Copy;
-        Dispatcher.BeginInvoke(() =>
-        {
-            if (closed) return;
-            if (navigation)
-            {
-                var next = new Wheel(received, favorites, invoke, external: false, track) { group = 1, Left = Left, Top = Top };
-                next.Rebuild();
-                Close();
-                track(next);
-                next.Show();
-                return;
-            }
-            Close();
-            invoke(slot.Command, received);
-        }, DispatcherPriority.Normal);
+        Close();
+        Dispatcher.BeginInvoke(() => invoke(slot.Command, received), DispatcherPriority.Normal);
     }
 
     public static string[] GetFiles(IDataObject data)
@@ -370,13 +300,6 @@ internal sealed class Wheel : Window
     private void Choose(string command)
     {
         if (external) return;
-        if (command is More or Back)
-        {
-            group += command == More ? 1 : -1;
-            Rebuild();
-            slots.FirstOrDefault(slot => slot.Button.IsEnabled)?.Button.Focus();
-            return;
-        }
         Close();
         var received = files;
         Dispatcher.BeginInvoke(() => invoke(command, received), DispatcherPriority.Normal);
@@ -384,6 +307,12 @@ internal sealed class Wheel : Window
 
     private void Navigate(object sender, KeyEventArgs args)
     {
+        var key = args.Key == Key.System ? args.SystemKey : args.Key;
+        var binding = key switch { Key.LeftShift or Key.RightShift => "Shift", Key.LeftCtrl or Key.RightCtrl => "Ctrl",
+            Key.LeftAlt or Key.RightAlt => "Alt", _ => "" };
+        var indexOfMode = Array.IndexOf(preferences.ModeKeys, binding);
+        if (!external && indexOfMode >= 0 && !args.IsRepeat)
+        { Switch((WheelMode)indexOfMode); args.Handled = true; return; }
         if (args.Key == Key.Escape) { Close(); args.Handled = true; return; }
         if (args.Key == Key.Enter && Keyboard.FocusedElement is Button button &&
             slots.FirstOrDefault(slot => slot.Button == button)?.Command is { } command)

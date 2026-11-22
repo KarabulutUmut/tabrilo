@@ -2,6 +2,13 @@
   "version": 1,
   "platform": "windows-x64",
   "assets": {
+    "office": {
+      "version": "26.8.3",
+      "url": "https://download.documentfoundation.org/libreoffice/stable/26.8.3/win/x86_64/LibreOffice_26.8.3_Win_x86-64.msi",
+      "sha256": "0e6918c273eabbdbbd800ee0dacbbf130a14c13c2e4cec861b06dd59e015bf94",
+      "license": "MPL-2.0 and bundled component terms in the distribution",
+      "purpose": "Optional app-local DOCX and PPTX rendering"
+    },
     "actionlint": {
       "version": "1.7.12",
       "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_windows_amd64.zip",

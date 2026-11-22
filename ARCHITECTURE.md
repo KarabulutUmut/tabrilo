@@ -121,8 +121,10 @@ The wheel requires real global file-drag activation plus normal in-app drag/drop
 Windows: use native/OLE drag payloads and a suitable overlay; do not infer dragged files by stealing the clipboard.
 Do not inject DLLs into Explorer, install privileged drivers, or require administrator rights for normal interaction.
 Hook only the input needed for the explicit gesture; release resources on exit, failure, or permission denial.
-The Windows overlay monitors modifier/button state and Explorer foreground movement. Its OLE drop
-target acquires actual file paths and requires an explicit drop on an enabled action.
+Windows observes button edges from Explorer and scopes key observation to the held gesture.
+A provisional OLE target obtains real CF_HDROP before revealing the wheel. Its physical release and
+OLE Drop must agree on a sector. Cancelled sessions reject late notifications. AppKit uses dragging
+sequence numbers and native pasteboard file URLs. Both consume the versioned shared wheel contract.
 Test screen bounds, negative coordinates, mixed DPI, monitors, interrupted drags, focus, and normal drag behavior.
 macOS: request only permissions actually needed and explain their purpose; denial keeps basic in-app functionality usable.
 Graceful fallback does not count as verification of an unavailable global wheel feature.
@@ -180,9 +182,8 @@ Home, the keyboard wheel, and Explorer use the same coordinator. Only explicit
 choices, editor interactions, and OS clipboard work use the WPF dispatcher.
 The quick operation implementations and image processing run on background tasks.
 
-One nonmodal Jobs window presents progress and preserves job outcomes in memory
-until dismissal or exit. Closing the window hides it and keeps active work
-reachable from Home or the opt-in tray. History persists published paths only.
+Compact nonactivating feedback exposes cancellation and completion. A bounded Jobs window
+opens on request. History persists published paths only. An explicit Move uses native file operations.
 Input editors own cancellable, debounced result previews. A newer request
 cancels older work, and Save and Copy consume current validated output.
 
@@ -190,6 +191,19 @@ Separate exports default to their source directories. Combined output across
 different source folders and first-use clipboard exports require an explicit
 destination. A configured destination is checked before the job writes.
 Destination checks do not replace validation or atomic publication in processing.
+
+## Page assembly and Office layout
+
+Page assembly holds read leases and caches qpdf inspection per source for grouped Split.
+qpdf copies page content and annotations to a new document. A second structural pass maps local
+destinations onto retained page objects, disables removed targets, and rebuilds flat page bookmarks.
+The page editor discloses omitted document-level structures. Rewrites refuse signed and protected input.
+Forms, active actions, embedded files and unsupported layers have separate page-assembly guards.
+
+Windows renders static DOCX/PPTX through a local LibreOffice profile with disabled macros and
+active content. The bounded worker rejects linked external resources, validates qpdf output and
+opens it with Windows.Data.Pdf. The optional MSI administrative image includes upstream notices.
+Editable PDF-to-DOCX/PPTX needs a reconstruction engine and layout acceptance.
 
 ## Validation and operations
 

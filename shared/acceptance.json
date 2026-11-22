@@ -72,6 +72,10 @@
     "desktop": [
       "real Explorer/OLE source",
       "inactive drag and text editing unaffected",
+      "Shift/Ctrl/Alt switch in one held drag; modifier release retains mode",
+      "physical release outside, center or gap cancels; exit and reenter before release commits once",
+      "late native Drop after cancellation never executes; second drag starts fresh",
+      "same six universal actions for folders, unknown and known files",
       "screen readers, DPI, clipboard, shortcuts and appearance"
     ],
     "package": [

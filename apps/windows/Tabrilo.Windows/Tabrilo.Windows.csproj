@@ -9,7 +9,6 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Tabrilo.ico</ApplicationIcon>
-    <Version>0.1.0</Version>
     <TabriloInstallIdentity Condition="'$(TabriloInstallIdentity)' == ''">Tabrilo</TabriloInstallIdentity>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
   </PropertyGroup>

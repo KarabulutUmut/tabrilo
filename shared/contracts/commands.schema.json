@@ -51,7 +51,7 @@
               "enum": [
                 "image",
                 "pdf",
-                "archive"
+                "archive", "office", "any"
               ]
             }
           }

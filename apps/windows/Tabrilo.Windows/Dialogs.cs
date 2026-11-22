@@ -81,6 +81,7 @@ internal static class Dialogs
         var layout = new StackPanel { Margin = new Thickness(18) };
         Controls.Heading(layout, title);
         var dialog = WindowFor(owner, title, layout, 750, 640);
+        layout.Children.Add(Controls.Text(Workflows.AssemblyNotice, 13, true));
         var entries = new List<PdfPageChoice>(pages);
         var undo = new Stack<PdfPageChoice[]>();
         var redo = new Stack<PdfPageChoice[]>();

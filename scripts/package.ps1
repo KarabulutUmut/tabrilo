@@ -4,7 +4,7 @@ Publishes a self-contained Windows x64 payload and builds a local per-user NSIS 
 .PARAMETER Configuration
 Build configuration. Defaults to Release.
 .PARAMETER Version
-Three-part build version. Defaults to 0.1.0.
+Three-part build version. Defaults to the source version in Directory.Build.props.
 .PARAMETER PayloadOnly
 Publish the self-contained runnable payload without compiling an installer.
 .PARAMETER IsolatedTest
@@ -13,12 +13,13 @@ Use a separate per-user test identity and installation directory.
 [CmdletBinding()]
 param(
     [ValidateSet('Debug','Release')] [string] $Configuration = 'Release',
-    [ValidatePattern('^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})$')] [string] $Version = '0.1.0',
-    [switch] $PayloadOnly, [switch] $IsolatedTest, [switch] $Help
+    [ValidatePattern('^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})$')] [string] $Version,
+    [switch] $IncludeOffice, [switch] $PayloadOnly, [switch] $IsolatedTest, [switch] $Help
 )
 if ($Help) { Get-Help $PSCommandPath; exit 0 }
 . "$PSScriptRoot/common.ps1"
 try {
+    if (!$Version) { $Version = ([xml](Get-Content -Raw (Join-Path $TabriloRoot 'Directory.Build.props'))).Project.PropertyGroup.Version }
     if (@($Version.Split('.') | Where-Object { [int]$_ -gt 65535 }).Count) { throw 'Version parts must be at most 65535.' }
     $qpdf = Join-Path $TabriloRoot '.tools/qpdf/qpdf-12.4.2-msvc64/bin/qpdf.exe'
     $nsis = Join-Path $TabriloRoot '.tools/nsis-unpacked/nsis-3.13/makensis.exe'
@@ -33,6 +34,20 @@ try {
     Invoke-TabriloDotnet @('publish', $TabriloProjects.App, '-c', $Configuration, '-r', 'win-x64',
         '--self-contained', 'true', '-p:PublishTrimmed=false', '--no-restore', "-p:Version=$Version",
         "-p:TabriloInstallIdentity=$(if ($IsolatedTest) {'Tabrilo-Isolated'} else {'Tabrilo'})", '-o', $payload)
+
+    if ($IncludeOffice) {
+        $msi = Join-Path $TabriloRoot '.tools/LibreOffice_26.8.3.msi'
+        $pin = (Get-Content -Raw (Join-Path $TabriloRoot 'shared/dependencies.json') | ConvertFrom-Json).assets.office
+        if (!(Test-Path -LiteralPath $msi) -or (Get-FileHash -LiteralPath $msi).Hash -ne $pin.sha256) {
+            throw "Place the verified LibreOffice MSI from $($pin.url) at $msi before packaging with -IncludeOffice."
+        }
+        $office = Join-Path $payload 'tools/office'
+        $arguments = @('/a', ('"' + $msi + '"'), '/qn', ('TARGETDIR="' + $office + '"'))
+        $extract = Start-Process msiexec.exe -ArgumentList $arguments -Wait -PassThru -WindowStyle Hidden
+        if ($extract.ExitCode -ne 0 -or !(Test-Path -LiteralPath (Join-Path $office 'program/soffice.com'))) {
+            throw "Local Office extraction failed ($($extract.ExitCode))."
+        }
+    }
 
     $licenses = Join-Path $payload 'licenses'
     $null = New-Item -ItemType Directory -Path $licenses

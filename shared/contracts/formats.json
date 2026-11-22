@@ -12,6 +12,7 @@
       "heic",
       "heif"
     ],
+    "office": ["docx", "pptx"],
     "pdf": [
       "pdf"
     ],

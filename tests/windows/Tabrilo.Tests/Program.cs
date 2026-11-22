@@ -39,6 +39,7 @@ var checks = new (string Name, Func<Task> Run)[]
     ("ZIP, TAR, GZIP and TGZ publication", ArchiveFormats),
     ("Archive path, size and disk limits", ArchiveGuards),
     ("PDF properties, structural edits and WinRT render", PdfRewrite),
+    ("Wheel modes and PDF navigation", ThreeWheel),
     ("PDF conservative and lossy compression", PdfCompress),
     ("Ed25519 update checks and interruption", UpdateTrust)
 };
@@ -49,6 +50,28 @@ foreach (var (name, run) in checks)
     catch (Exception error) { failures++; Console.WriteLine($"FAIL {name}\n{error}"); }
 }
 var total = checks.Length;
+if (Environment.GetEnvironmentVariable("TABRILO_TEST_OFFICE") is { Length: > 0 } engine)
+{
+    total++;
+    try { await OfficeLayouts(engine); Console.WriteLine("PASS DOCX and PPTX multi-page layouts"); }
+    catch (Exception error) { failures++; Console.WriteLine($"FAIL Office layouts\n{error}"); }
+}
+else Console.WriteLine("Coverage skipped: real Office engine (TABRILO_TEST_OFFICE).");
+if (Environment.GetEnvironmentVariable("TABRILO_TEST_SPLIT_PDF") is { Length: > 0 } sample)
+{
+    total++;
+    try
+    {
+        var pdf = new Pdfs(qpdf);
+        var before = Hash(sample);
+        var info = await pdf.InspectAsync(sample, null, default);
+        var parts = await pdf.SplitAsync(sample, Enumerable.Range(1, info.Pages).Select(p => new[] { p }).ToArray(),
+            Folder("owner-split"), true, default);
+        Require(info.Pages == Directory.GetFiles(parts, "*.pdf").Length && before == Hash(sample), "owner PDF split and input hash");
+        Console.WriteLine($"PASS Owner PDF split: {info.Pages} single-page PDFs, unchanged SHA-256 {before}");
+    }
+    catch (Exception error) { failures++; Console.WriteLine($"FAIL Owner PDF split\n{error}"); }
+}
 if (args is ["--installed", var oldInstaller, var newInstaller])
 {
     total++;
@@ -247,7 +270,7 @@ async Task ReadQr()
     Require(new QrResult("file:///c:/x.exe", "Text", null, []).AllowedLink is null, "file URL stays text");
     var pdf = new Pdfs(qpdf);
     var document = await pdf.FromImagesAsync([source, source], folder, new(), default);
-    var render = await pdf.OpenForRenderingAsync(document, null, default);
+    using var render = await pdf.OpenForRenderingAsync(document, null, default);
     var page = await Pdfs.RenderPageAsync(render, 2, 144, ImageFormat.Png, default);
     Require(Qr.ScanRenderedPage(page, 2, default).Count(item => item.Page == 2) == 2, "PDF QR page and multiple results");
     Require(Hash(source) == hash, "unchanged QR source");
@@ -351,10 +374,84 @@ async Task PdfRewrite()
     Require(inspection.PageCount == 3 && inspection.Pages[0].Rotate == 90 &&
         inspection.Pages[1].Width.Point == 500, "independent page order, geometry and rotation");
     inspection.Dispose();
-    var rendered = await pdf.OpenForRenderingAsync(ordered, null, default);
+    using var rendered = await pdf.OpenForRenderingAsync(ordered, null, default);
     var image = await Pdfs.RenderPageAsync(rendered, 1, 96, ImageFormat.Jpeg, default);
     var path = await Images.SaveAsync(image, folder, "page", default);
     Require(Decode(path).PixelWidth > 100 && Hash(source) == original, "independent rendered JPEG and original hash");
+}
+
+async Task ThreeWheel()
+{
+    foreach (var neutral in new string?[] { null, "different" })
+    {
+        var session = new DropRelease();
+        session.Release(neutral);
+        Require(!session.TryCommit("JPG") && !session.TryCommit("JPG"), "invalid physical release latches cancellation");
+    }
+    var valid = new DropRelease(); valid.Release("JPG");
+    Require(valid.TryCommit("JPG") && !valid.TryCommit("JPG"), "one matching native drop");
+    var cancelled = new DropRelease(); cancelled.Cancel(); cancelled.Release("JPG");
+    Require(!cancelled.TryCommit("JPG") && !new DropRelease().TryCommit("JPG"), "escape and early drop do nothing");
+    var wheel = WheelCatalog.Shared;
+    var folder = Folder("wheel-and-pdf");
+    foreach (var sample in new[] { folder, "a.pdf", "a.png", "a.docx", "a.pptx", "a.zip", "a.xyz" })
+        Require(wheel.For(WheelMode.Actions, [sample], false, false).Select(c => c.Id).SequenceEqual(
+            new[] { "action.share", "action.float", "action.copy", "action.move", "action.path", "action.terminal" }), "fixed action order");
+    Require(wheel.For(WheelMode.Convert, ["a.png"], false, false).Select(c => c.Label).SequenceEqual(new[] { "JPG", "PDF" }), "direct PNG targets");
+    Require(wheel.For(WheelMode.Convert, ["a.docx"], false, false).Length == 0, "missing engine hidden");
+    Require(wheel.For(WheelMode.Tools, ["a.pdf", "a.png"], false, false).Single().Id == "qr.read", "mixed intersection");
+    var source = Path.Combine(repository, "tests/fixtures/navigation.pdf");
+    var hash = Hash(source);
+    var pdf = new Pdfs(qpdf);
+    var result = await pdf.SplitAsync(source, [[3, 2], [1]], folder, false, default);
+    using var keep = PdfSharp.Pdf.IO.PdfReader.Open(Path.Combine(result, "Part 0001.pdf"));
+    using var omit = PdfSharp.Pdf.IO.PdfReader.Open(Path.Combine(result, "Part 0002.pdf"));
+    Require(keep.PageCount == 2 && keep.Outlines.Count == 2 && omit.Outlines.Count == 1, "retained bookmarks only");
+    Require(keep.Pages[0].Annotations.Count == 3 && omit.Pages[0].Annotations.Count == 3, "passive annotations retained");
+    var retained = keep.Pages[0].Annotations[1].Elements.GetArray("/Dest");
+    Require(retained != null && retained.Elements.GetObject(0) == keep.Pages[1], "internal link remapped");
+    Require(!omit.Pages[0].Annotations[1].Elements.ContainsKey("/Dest") && !omit.Pages[0].Annotations[1].Elements.ContainsKey("/A"), "omitted target disabled");
+    Require(keep.Pages[0].Annotations[0].Elements.GetDictionary("/A")?.Elements.GetString("/URI") == "https://example.org/", "retained URI");
+    var joined = await pdf.AssembleAsync([new(source, 2, 90), new(Path.Combine(result, "Part 0002.pdf"), 1)], folder, "merged", default);
+    using var merged = PdfSharp.Pdf.IO.PdfReader.Open(joined);
+    Require(merged.PageCount == 2 && merged.Pages[0].Rotate == 90 && merged.Outlines.Count == 2, "cross-source merge");
+    Require(Hash(source) == hash, "input preserved");
+    using var stop = new CancellationTokenSource();
+    await Expect<OperationCanceledException>(() => OutputGroup.WriteAsync(folder, "cancelled", 2, async (dir, index, ct) =>
+    {
+        var file = Path.Combine(dir, "page.png");
+        await File.WriteAllTextAsync(file, "staging", ct);
+        stop.Cancel();
+        return file;
+    }, stop.Token));
+    Require(!Directory.EnumerateDirectories(folder, ".tabrilo-*").Any() && !Directory.Exists(Path.Combine(folder, "cancelled")), "group cleanup");
+}
+
+async Task OfficeLayouts(string engine)
+{
+    var folder = Folder("office");
+    var pdf = new Pdfs(qpdf);
+    var renderer = new OfficeRenderer(engine, pdf);
+    foreach (var ext in new[] { "docx", "pptx" })
+    {
+        var source = Path.Combine(repository, "tests/fixtures/layout." + ext);
+        var hash = Hash(source);
+        await renderer.RenderAsync(source, async path =>
+        {
+            using var inspect = PdfSharp.Pdf.IO.PdfReader.Open(path);
+            Require(inspect.PageCount == 2, ext + " page count");
+            File.Copy(path, Path.Combine(folder, ext + ".pdf"));
+            using var document = await pdf.OpenForRenderingAsync(path, null, default);
+            for (var page = 1; page <= 2; page++)
+            {
+                var image = await Pdfs.RenderPageAsync(document, page, 150, page == 1 ? ImageFormat.Jpeg : ImageFormat.Png, default);
+                var output = await Images.SaveAsync(image, folder, ext + "-" + page, default);
+                Require(Decode(output).PixelWidth > 600, "independent page image decode");
+            }
+            return path;
+        }, default);
+        Require(Hash(source) == hash, "Office source preserved");
+    }
 }
 
 async Task PdfCompress()

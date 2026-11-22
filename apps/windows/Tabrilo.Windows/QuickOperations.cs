@@ -22,12 +22,17 @@ internal sealed class QuickOperations(OperationContext context, Window? owner, P
     private sealed record PdfCompression(int Quality);
 
     public static bool Handles(string command) => command is "image.convert" or "image.compress" or "image.metadata"
-        or "pdf.compress" or "archive.extract" or "qr.read";
+        or "pdf.compress" or "archive.extract" or "qr.read" or "convert.pdf" or "convert.png" or "convert.jpg" or "convert.webp";
 
     public async Task Execute(Presentation presentation)
     {
         var token = context.Cancellation;
         var id = context.Command.Id;
+        if (id.StartsWith("convert.", StringComparison.Ordinal))
+        {
+            await ConvertFiles(id);
+            return;
+        }
         if (id == "qr.read")
         {
             await Scan(presentation == Presentation.Choices);
@@ -46,6 +51,7 @@ internal sealed class QuickOperations(OperationContext context, Window? owner, P
                 imageOptions = _ => ConvertTo(format.Format);
                 break;
             case "image.compress":
+                if (!context.Request.Advanced) { imageOptions = input => CompressImage(input, false); break; }
                 var compression = ChooseCompression();
                 if (compression is null) return;
                 changeDestination |= compression.ChangeDestination;
@@ -93,6 +99,59 @@ internal sealed class QuickOperations(OperationContext context, Window? owner, P
             return new(input, saved, Size(before, image.Bytes.Length) + description);
         }, new Progress<JobProgress>(view.Update), token);
         publish(result.Items);
+    }
+
+    private async Task ConvertFiles(string id)
+    {
+        var paths = context.Inputs.Select(item => item.Path).ToArray();
+        var token = context.Cancellation;
+        var view = start();
+        if (id == "convert.pdf" && paths.All(path => FileKinds.Classify(path) == "image"))
+        {
+            Array.Sort(paths, StringComparer.OrdinalIgnoreCase);
+            var folder = await destination.Combined();
+            var result = await Task.Run(() => pdf.FromImagesAsync(paths, folder, new(), token,
+                Path.GetFileNameWithoutExtension(paths[0])), token);
+            publish([new(paths[0], result)]);
+            return;
+        }
+
+        var folders = await destination.Separate();
+        var format = id switch { "convert.jpg" => ImageFormat.Jpeg, "convert.webp" => ImageFormat.WebP, _ => ImageFormat.Png };
+        var outcomes = await Jobs.RunAsync(paths, async (input, cancel) =>
+        {
+            var stem = Path.GetFileNameWithoutExtension(input);
+            var folder = folders[input];
+            if (FileKinds.Classify(input) == "image")
+            {
+                var image = await Images.ProcessAsync(input, ConvertTo(format), cancel);
+                return new(input, await Images.SaveAsync(image, folder, stem, cancel));
+            }
+            async Task<string> ExportPdf(string source)
+            {
+                if (id == "convert.pdf")
+                    return await OutputFiles.WriteAsync(folder, stem, ".pdf",
+                        (path, ct) => { ct.ThrowIfCancellationRequested(); File.Copy(source, path, true); return Task.CompletedTask; },
+                        async (path, ct) => { await pdf.InspectAsync(path, null, ct); }, cancel);
+                using var document = await pdf.OpenForRenderingAsync(source, null, cancel);
+                var count = checked((int)document.PageCount);
+                async Task<string> Page(string output, int index, CancellationToken ct)
+                {
+                    var pixels = await Pdfs.RenderPageAsync(document, index + 1, 150, format, ct);
+                    return await Images.SaveAsync(pixels, output, count == 1 ? stem : $"Page {index + 1:D4}", ct);
+                }
+                return count == 1 ? await Page(folder, 0, cancel) :
+                    await OutputGroup.WriteAsync(folder, stem + " pages", count, Page, cancel);
+            }
+            if (FileKinds.Classify(input) == "office")
+            {
+                var engine = new OfficeRenderer(preferences.OfficeExecutable, pdf);
+                var output = await engine.RenderAsync(input, ExportPdf, cancel);
+                return new(input, output, "Static layout. Check fonts, tables and pagination in the result.");
+            }
+            return new(input, await ExportPdf(input));
+        }, new Progress<JobProgress>(view.Update), token);
+        publish(outcomes.Items);
     }
 
     private FormatChoice? ChooseFormat() => Dialogs.Ask<FormatChoice>(owner, "Convert image", panel =>
@@ -189,7 +248,7 @@ internal sealed class QuickOperations(OperationContext context, Window? owner, P
                         pages = chosen;
                     }
                     if (pages.Length < info.Pages) notes.Add($"{name} · Scanning {pages.Length} of {info.Pages} pages.");
-                    var doc = await pdf.OpenForRenderingAsync(input, password, token);
+                    using var doc = await pdf.OpenForRenderingAsync(input, password, token);
                     foreach (var page in pages)
                     {
                         token.ThrowIfCancellationRequested();

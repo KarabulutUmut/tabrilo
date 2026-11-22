@@ -1,60 +1,42 @@
 # Tabrilo current status
 
-Updated 2026-11-15. Windows utility repair is in development. Owner acceptance is open.
+Windows three-wheel development is on utility PR #8. Owner gesture acceptance is open.
 
 | Area | Status | Evidence |
 | --- | --- | --- |
-| Baseline on main | Verified with evidence | Native Release suite, 11/11 groups |
-| Routing, destinations, wheel sectors and image coordinates | Verified with evidence | Native Release suite, 13/13 groups |
-| Quick operations and focused editors | Implemented/unverified | Isolated WPF payload opened. Initial UI Automation observed a selected synthetic image and the keyboard wheel |
-| Explorer drag, visual and external clipboard | Blocked | Windows Graphics Capture timed out and coordinate input geometry was unavailable |
-| Installed update | Verified with evidence on baseline | Isolated 0.1.0 → 0.2.0 regression. The utility repair reruns signed feed and payload trust tests |
-| macOS | Implemented/unverified | AppKit shell and shared catalog. Mac compilation and desktop validation pending |
-| Production publication | Blocked | Acceptance, redistribution, publisher and update signing, approved feed |
+| Native image/PDF, QR, archives and updater trust | Verified with evidence | Native Release suite, Windows 10 x64, .NET SDK 10.0.404 |
+| PDF Split | Verified with evidence | Nine one-page parts from the owner's tagged MDPI guide. Source SHA-256 preserved. Fixtures check links, annotations, bookmarks, order and rotation |
+| DOCX/PPTX layout | Verified with evidence | Both two-page fixtures render through local LibreOffice 26.8.3 into independently decoded PDFs and page images |
+| Windows wheel and six file actions | Implemented/unverified | Physical Explorer/Desktop, external copy/paste, Float, Move and mixed-DPI acceptance tracked separately |
+| macOS | Implemented/unverified | AppKit wheel, file actions and image/PDF conversion. Finder acceptance, contextual tools, Office and updates remain open |
+| Production publication | Blocked | Native acceptance, redistribution review, signing credentials and approved feeds |
 
-## Local evidence
+## Reproduction
 
-Native PowerShell 7 and repository-local .NET SDK 10.0.404 on Windows 10 x64,
-build 19045. Clean Windows 11 validation is pending.
+From native PowerShell 7 at the repository root, set `TABRILO_TEST_OFFICE` to the absolute path of
+the extracted engine's `program/soffice.com` and optionally `TABRILO_TEST_SPLIT_PDF` to a selected PDF.
+Run `pwsh -NoProfile -File scripts/test.ps1 -Configuration Release`. The log prints its evidence directory.
+The native run with both optional inputs passed 16/16 checks. Results and independent inspections are in
+`artifacts/verification/three-wheel*` and `artifacts/tests`. Physical Explorer timing is a separate check.
+Build an Office-equipped local payload with `scripts/package.ps1 -Configuration Release -PayloadOnly -IncludeOffice`.
+The pinned MSI is 376,311,808 bytes. The measured administrative image is 1,603,968,965 bytes.
+The checked-out scripts do not install LibreOffice system-wide. Complex layout, substitute fonts
+and editable PDF reconstruction remain outstanding.
 
-- `pwsh -NoProfile -File scripts/test.ps1 -Configuration Release` exited 0.
-  See `artifacts/verification/utility-test.log` and the synthetic evidence
-  directory it prints. The existing archive guards cover streamed bytes, free
-  space, collisions, corrupt GZIP, pre-cancellation and staging cleanup.
-- `pwsh -NoProfile -File scripts/package.ps1 -Configuration Release -PayloadOnly -IsolatedTest -Version 0.1.1`
-  builds the isolated development payload. See
-  `artifacts/verification/utility-payload-final.log` for the current executable.
-  Its development title shows the version and checked-out commit.
-- Startup and UI Automation notes are under `artifacts/verification/utility-desktop`.
-  Windows input-idle timing is a startup observation. Explorer gesture timing,
-  capture, recording, mixed DPI, canvas dragging and clipboard interoperability
-  need separate evidence.
+## Maintenance and archive review
 
-## Archive alert and dependency maintenance
-
-[CodeQL alert #1](https://github.com/KarabulutUmut/tabrilo/security/code-scanning/1)
-is open. Authenticated metadata reports `cs/zipslip` at main revision
-`48df81ebf0c03e817f05c20b1877cedf9c043399`. The original analysis traces ZIP
-entry names through `Writer.Resolve` to the file write in `Writer.FileAsync`.
-`OutputFiles.ValidateLeaf` rejects unsafe components.
-`DirectoryPin` checks ancestor identities and attributes during writing.
-Staging publication and cleanup need their own ownership evaluation. The
-location trace is in `artifacts/verification/utility-codeql-trace.txt`.
-
-[Maintenance PR #7](https://github.com/KarabulutUmut/tabrilo/pull/7) adds an
-explicit solution-wide lockfile refresh command. The UX branch starts from main
-independently. In a detached PR #3 worktree, base lockfiles with updated central
-versions reproduced NU1004. Refresh restored the PR's committed package
-versions and hashes. Forced locked restore exited 0. See
-`artifacts/verification/utility-dependency-pr3-*.log`.
-[PR #3's hosted failure](https://github.com/KarabulutUmut/tabrilo/actions/runs/43760287197/job/132953339492)
-occurred in PDF and QR processing tests after restore. Dependency PRs #1–#5
-remain open and unmerged.
+PR #7 added trusted lock refresh. PRs #1 and #2 update full-SHA Actions pins. PR #3 retains MIT
+PDFsharp 6.2.4 and updates Magick.NET independently of the proposed AGPL-3.0-only PDFsharp 6.5.0.
+See GitHub for the review and check state of each dependency head.
+Archive alert #1 remains open. The original trace reaches the streamed ZIP writer. Component validation,
+ancestor pinning and create-new writes protect entry extraction. The stage pin is released before
+directory rename and recursive failure cleanup. Ownership across those operations needs a handle-based
+fix and native regression evidence. The trace is in `artifacts/verification/utility-codeql-trace.txt`.
 
 ## Next actions
 
-1. Review archive containment and staging ownership, then verify the outcome with CodeQL and native filesystem evidence.
-2. Exercise Explorer-to-wheel, tray lifetime, light/dark, mixed DPI, editor gestures, copy/save and cancellation on a capturable Windows desktop.
-3. Review the PDF/QR failures in Dependabot PR #3 and verify dependency updates separately.
-4. Validate clean Windows 11 packaging, installer interruption and redistribution before publisher signing or hosting.
-5. Build the AppKit counterpart on a Mac and validate Finder integration, installation and signed updates.
+1. Complete packaged Explorer/Desktop interaction, outside-release, visual and external clipboard acceptance.
+2. Verify clean Windows installation, real installed upgrades and licensing before public distribution.
+3. Complete archive staging ownership and rerun CodeQL against the fix.
+4. Validate Finder gestures, Mac rendering, contextual tools, permissions, packaging and updates on macOS.
+5. Evaluate editable Office reconstruction and richer tagged PDF hierarchy preservation.

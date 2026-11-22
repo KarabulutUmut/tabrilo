@@ -128,28 +128,19 @@ internal sealed class Workflows(Window? owner, Func<KeyEventArgs, string, bool> 
     private async Task ArrangePdf(string label, string[] inputs, CancellationToken token)
     {
         var pages = await PageChoices(inputs);
-        string? currentPath = null;
-        global::Windows.Data.Pdf.PdfDocument? current = null;
         var arranged = Dialogs.ArrangePages(owner, label, pages, keys, () =>
         {
             var picker = new OpenFileDialog { Filter = "PDF documents|*.pdf", Multiselect = true };
             return (owner is { IsVisible: true } ? picker.ShowDialog(owner) : picker.ShowDialog()) == true ? picker.FileNames : null;
         }, PageChoices, async (page, cancel) =>
         {
-            var doc = current;
-            if (doc is null || currentPath != page.Path)
-            {
-                doc = await pdf.OpenForRenderingAsync(page.Path, null, cancel);
-                cancel.ThrowIfCancellationRequested();
-                currentPath = page.Path;
-                current = doc;
-            }
+            using var doc = await pdf.OpenForRenderingAsync(page.Path, null, cancel);
             return await Pdfs.RenderPageAsync(doc, page.Number, 48, ImageFormat.Png, cancel);
         });
         if (arranged is null) return;
         var folder = await destination.Combined();
         report(new(0, 0, "Assembling PDF…"));
-        var output = await pdf.AssembleAsync(arranged, folder, Pdfs.Stem(inputs[0], "pages"), token);
+        var output = await pdf.AssembleAsync(arranged, folder, Pdfs.Stem(inputs[0], "pages"), token, allowPageExtrasLoss: true);
         publish([new(inputs[0], output)]);
 
         async Task<PdfPageChoice[]> PageChoices(string[] paths)
@@ -174,6 +165,7 @@ internal sealed class Workflows(Window? owner, Func<KeyEventArgs, string, bool> 
         var info = await pdf.InspectAsync(input, null, token);
         var request = Dialogs.Ask<PdfSplit>(owner, label, panel =>
         {
+            panel.Children.Add(Controls.Text(AssemblyNotice, 13, true));
             var range = Controls.Field(panel, $"Pages (1–{info.Pages})", "all");
             var mode = Controls.Choice(panel, "Output", ["Single PDF", "One file per page", "Fixed-size groups"], "Single PDF");
             var size = Controls.Field(panel, "Pages per group", "2", 4);
@@ -184,16 +176,13 @@ internal sealed class Workflows(Window? owner, Func<KeyEventArgs, string, bool> 
         var folder = await destination.Combined();
         var groupSize = request.Mode switch { "Single PDF" => request.Pages.Length, "One file per page" => 1, _ => request.GroupSize };
         var groups = request.Pages.Chunk(groupSize).ToArray();
-        var choices = groups.Select((pages, index) => (pages, index)).ToDictionary(
-            item => $"{Path.GetFileNameWithoutExtension(input)} part {item.index + 1}", item => item.pages);
-        var result = await Jobs.RunAsync(choices.Keys.ToArray(), async (part, cancel) =>
-        {
-            var output = await pdf.AssembleAsync(choices[part].Select(page => new PdfPageChoice(input, page)).ToArray(),
-                folder, part, cancel);
-            return new(part, output);
-        }, Progress(), token);
-        publish(result.Items);
+        report(new(0, groups.Length, "Splitting pages…"));
+        var output = await Task.Run(() => pdf.SplitAsync(input, groups, folder, true, token), token);
+        publish([new(input, output)]);
     }
+
+    internal const string AssemblyNotice = "Keeps page content, passive annotations and links to retained pages. " +
+        "Page bookmarks become a flat list. Links to omitted pages lose their target. Document tags, name indexes and initial view are omitted.";
 
     private async Task ExportPages(string label, string[] inputs, CancellationToken token)
     {
@@ -204,7 +193,7 @@ internal sealed class Workflows(Window? owner, Func<KeyEventArgs, string, bool> 
         var options = AskPages(label, unlocked.Value.Info.Pages);
         if (options is null) return;
         var folder = await destination.Combined();
-        var document = await pdf.OpenForRenderingAsync(input, unlocked.Value.Password, token);
+        using var document = await pdf.OpenForRenderingAsync(input, unlocked.Value.Password, token);
         var names = options.Pages.ToDictionary(page => $"{Path.GetFileNameWithoutExtension(input)} page {page}", page => page);
         var result = await Jobs.RunAsync(names.Keys.ToArray(), async (name, cancel) =>
         {

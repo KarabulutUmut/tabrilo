@@ -6,11 +6,14 @@ public sealed record RecentResult(string Operation, string Path, DateTimeOffset 
 
 public sealed record Preferences
 {
-    public int Version { get; init; } = 1;
+    public int Version { get; init; } = 2;
     public string Appearance { get; init; } = "System";
     public bool KeepHistory { get; init; } = true;
-    public bool UseTray { get; init; }
+    public bool UseTray { get; init; } = true;
     public bool StartAtLogin { get; init; }
+    public string[] ModeKeys { get; init; } = [.. WheelCatalog.Shared.Bindings];
+    public bool ShowWebP { get; init; }
+    public string? OfficeExecutable { get; init; }
     public string DragModifier { get; init; } = "Shift";
     public string DragButton { get; init; } = "Primary";
     public string? ExportDirectory { get; init; }
@@ -35,10 +38,13 @@ public sealed class LocalState
             using var input = File.OpenRead(file);
             if (input.Length > 1024 * 1024) throw new InvalidDataException("Preferences exceed the size limit.");
             var settings = JsonSerializer.Deserialize<Preferences>(input, JsonSerializerOptions.Web);
-            if (settings is not { Version: 1, Recent: not null, Shortcuts: not null, Favorites: not null })
+            if (settings is not { Version: 1 or 2, Recent: not null, Shortcuts: not null, Favorites: not null })
                 throw new InvalidDataException("Invalid preferences.");
             return settings with
             {
+                Version = 2,
+                ModeKeys = settings.ModeKeys is { Length: 3 } keys && keys.Distinct().Count() == 3 &&
+                    keys.All(WheelCatalog.Shared.Bindings.Contains) ? keys : [.. WheelCatalog.Shared.Bindings],
                 Recent = settings.KeepHistory ? settings.Recent.Where(item => item is { Path: not null } &&
                     Path.IsPathFullyQualified(item.Path)).Take(50).ToArray() : [],
                 Appearance = settings.Appearance is "Light" or "Dark" ? settings.Appearance : "System",
@@ -46,7 +52,7 @@ public sealed class LocalState
                 DragButton = settings.DragButton == "Secondary" ? "Secondary" : "Primary",
                 Favorites = settings.Favorites.Where(id => Commands.All.Any(c => c.Id == id && c.Scope == "operation"))
                     .Distinct().Take(6).ToArray(),
-                ExportDirectory = ValidDirectory(settings.ExportDirectory),
+                ExportDirectory = settings.Version == 1 ? null : ValidDirectory(settings.ExportDirectory),
                 ClipboardDirectory = ValidDirectory(settings.ClipboardDirectory),
                 JpegQuality = Math.Clamp(settings.JpegQuality, 1, 100),
                 WebPQuality = Math.Clamp(settings.WebPQuality, 1, 100)

@@ -40,6 +40,11 @@ Legal notices, upstream license texts, and generated machine reports are exempt;
 Store test evidence as bounded ignored artifacts or CI artifacts. Git history, PRs, and release notes keep historical detail.
 Keep STATUS.md at no more than five prioritized next actions. Replace its old handoff rather than accumulating handoffs.
 
+## Wheel acceptance
+
+Use the mode contract in PRODUCT.md and shared/contracts/wheel.json. Test physical release outside,
+in the center and in sector gaps. Record returning before release and native-source evidence per OS.
+
 ## Engineering rules
 
 Use typed, cancellable operations and a shared semantic command registry; keep processing out of UI event handlers.

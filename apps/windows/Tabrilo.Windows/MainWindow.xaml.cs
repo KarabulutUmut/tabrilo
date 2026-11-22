@@ -45,8 +45,11 @@ public partial class MainWindow : Window
             IsShortcut, SetBusy, status => state.Status = status, RecordOutputs);
         desktop = new(this, Quit, operations.ShowResults);
         desktop.Tray(preferences.UseTray);
-        drag = new(() => state.Busy ? "Off" : preferences.DragModifier, () => preferences.DragButton,
-            point => OpenWheel([], point), escaped => wheel?.EndGesture(escaped));
+        drag = new(() => state.Busy ? [] : preferences.ModeKeys, (point, mode) =>
+        {
+            if (wheel is { } existing) existing.Switch(mode);
+            else OpenWheel([], point, mode: mode);
+        }, (escaped, point) => wheel?.EndGesture(escaped, point));
         Title = App.BuildName;
         Loaded += (_, _) =>
         {
@@ -156,7 +159,7 @@ public partial class MainWindow : Window
         var current = CurrentInputs().ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var path in paths.Take(201))
         {
-            if (state.Inputs.Count >= 200 || !File.Exists(path) || !current.Add(path)) continue;
+            if (state.Inputs.Count >= 200 || (!File.Exists(path) && !Directory.Exists(path)) || !current.Add(path)) continue;
             var kind = FileKinds.Classify(path);
             state.Inputs.Add(new(path, Path.GetFileName(path) + (kind == "unsupported" ? "   ·   Unsupported format" : "   ·   " + kind), clipboard));
         }
@@ -208,18 +211,18 @@ public partial class MainWindow : Window
         args.Handled = true;
     }
 
-    private void OpenWheel(string[] paths, DragGesture.NativePoint at, bool external = true)
+    private void OpenWheel(string[] paths, DragGesture.NativePoint at, bool external = true, WheelMode mode = WheelMode.Convert)
     {
         if (wheel is not null || state.Busy) return;
         if (!external && paths.Length == 0) { state.Status = "Choose files before opening the wheel."; return; }
         var clipboard = external ? [] : state.Inputs.Where(item => item.Clipboard).Select(item => item.Path)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var menu = new Wheel(paths, preferences.Favorites, (id, received) =>
+        var menu = new Wheel(paths, preferences, mode, (id, received) =>
         {
             if (state.Busy || quitting) return;
             var origin = external ? InvocationOrigin.ExplorerWheel : InvocationOrigin.KeyboardWheel;
             _ = operations.RunAsync(id, received.Select(path => new OperationInput(path, clipboard.Contains(path))), origin);
-        }, external, TrackWheel);
+        }, external);
         if (!external && IsVisible) menu.Owner = this;
         TrackWheel(menu);
         menu.PositionAt(at.X, at.Y);
@@ -278,7 +281,7 @@ public partial class MainWindow : Window
         target.Child = drop;
         panel.Children.Add(target);
         Controls.Heading(drop, "Drop files here", 18);
-        drop.Children.Add(Controls.Text("Images, PDFs and archives", secondary: true));
+        drop.Children.Add(Controls.Text("Drag files and tap Shift for formats, Ctrl for tools, or Alt for file actions.", secondary: true));
         var buttons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         buttons.Children.Add(Controls.Button("Choose files…", () => _ = Dispatch("open"), true));
         buttons.Children.Add(Controls.Button("Paste", () => _ = Dispatch("paste")));
@@ -300,7 +303,8 @@ public partial class MainWindow : Window
         var key = Binding(Commands.All.First(item => item.Id == "wheel"));
         actions.Children.Add(Controls.Button($"Actions wheel · {key}", () => _ = Dispatch("wheel")));
         panel.Children.Add(actions);
-        var applicable = Commands.All.Where(command => command.AppliesTo(CurrentInputs())).ToArray();
+        var applicable = Enum.GetValues<WheelMode>().SelectMany(mode => WheelCatalog.Shared.For(mode, CurrentInputs(),
+            preferences.ShowWebP, Tabrilo.Processing.OfficeRenderer.Available(preferences.OfficeExecutable))).ToArray();
         if (applicable.Length == 0)
         {
             panel.Children.Add(Controls.Text("The selected file types have no common action. Remove incompatible files to continue."));
@@ -356,49 +360,18 @@ public partial class MainWindow : Window
         Controls.Heading(panel, "Appearance", 16);
         var appearance = Controls.Choice(panel, "Color theme", ["System", "Light", "Dark"], preferences.Appearance);
         Controls.Heading(panel, "Shortcuts and wheel", 16);
-        var modifier = Controls.Choice(panel, "Explorer drag modifier", ["Shift", "Ctrl", "Alt", "Off"], preferences.DragModifier);
-        var dragButton = Controls.Choice(panel, "Explorer drag button", ["Primary", "Secondary"], preferences.DragButton);
+        var modeKeys = Enum.GetValues<WheelMode>().Select(mode => Controls.Choice(panel, mode.ToString(),
+            WheelCatalog.Shared.Bindings, preferences.ModeKeys[(int)mode])).ToArray();
+        panel.Children.Add(Controls.Button("Reset wheel bindings", () =>
+        {
+            for (var i = 0; i < modeKeys.Length; i++) modeKeys[i].SelectedItem = WheelCatalog.Shared.Bindings[i];
+        }));
+        var optionalWebP = Controls.Checkbox(panel, "Include WebP in Convert", preferences.ShowWebP);
+        var office = Controls.Field(panel, "LibreOffice soffice.com (optional)", preferences.OfficeExecutable ?? "", 2048);
         var fields = Commands.All.Where(command => command.Shortcut is not null).ToDictionary(command => command,
             command => Controls.Field(panel, command.Label, Binding(command)!, 30));
-        var catalog = Commands.All.Where(item => item.Scope == "operation").ToArray();
-        var favoriteList = new ListBox { SelectionMode = SelectionMode.Single, Height = 130, DisplayMemberPath = nameof(CommandSpec.Label) };
-        Controls.AddLabel(panel, "Pinned wheel slots", favoriteList);
-        var favorites = preferences.Favorites.Select(id => catalog.FirstOrDefault(item => item.Id == id)).OfType<CommandSpec>().Take(6).ToList();
-        void RefreshFavorites(int index)
-        {
-            favoriteList.ItemsSource = favorites.ToArray();
-            if (favorites.Count != 0) favoriteList.SelectedIndex = Math.Clamp(index, 0, favorites.Count - 1);
-        }
-        void MoveFavorite(int offset)
-        {
-            var index = favoriteList.SelectedIndex;
-            if (index < 0 || index + offset < 0 || index + offset >= favorites.Count) return;
-            (favorites[index], favorites[index + offset]) = (favorites[index + offset], favorites[index]);
-            RefreshFavorites(index + offset);
-        }
-        RefreshFavorites(0);
-        var pick = Controls.Choice(panel, "Action to pin", catalog.Select(item => item.Label).ToArray(), catalog[0].Label);
-        var ordering = new WrapPanel();
-        ordering.Children.Add(Controls.Button("Pin", () =>
-        {
-            if (favorites.Count >= 6) { state.Status = "Remove a pin before adding another."; return; }
-            var favorite = catalog.First(item => item.Label == (string)pick.SelectedItem);
-            if (!favorites.Contains(favorite)) favorites.Add(favorite);
-            RefreshFavorites(favorites.Count - 1);
-        }));
-        ordering.Children.Add(Controls.Button("Earlier", () => MoveFavorite(-1)));
-        ordering.Children.Add(Controls.Button("Later", () => MoveFavorite(1)));
-        ordering.Children.Add(Controls.Button("Unpin", () =>
-        {
-            if (favoriteList.SelectedIndex < 0) return;
-            var index = favoriteList.SelectedIndex;
-            favorites.RemoveAt(index);
-            RefreshFavorites(index);
-        }));
-        panel.Children.Add(ordering);
-
         Controls.Heading(panel, "Files and privacy", 16);
-        var destination = Controls.Field(panel, "Default export folder (optional)", preferences.ExportDirectory ?? "", 2048);
+        var destination = Controls.Field(panel, "Always export to this folder (blank uses source folder)", preferences.ExportDirectory ?? "", 2048);
         var clipboardFolder = Controls.Field(panel, "Clipboard export folder (optional)", preferences.ClipboardDirectory ?? "", 2048);
         var jpeg = Controls.Field(panel, "JPEG conversion quality", preferences.JpegQuality.ToString(), 3);
         var webp = Controls.Field(panel, "WebP conversion quality", preferences.WebPQuality.ToString(), 3);
@@ -430,13 +403,17 @@ public partial class MainWindow : Window
             if (!int.TryParse(jpeg.Text, out var jpgQuality) || jpgQuality is < 1 or > 100 ||
                 !int.TryParse(webp.Text, out var webQuality) || webQuality is < 1 or > 100)
             { state.Status = "Enter conversion quality from 1 to 100."; return; }
+            var bindings = modeKeys.Select(key => (string)key.SelectedItem).ToArray();
+            if (bindings.Distinct().Count() != 3) { state.Status = "Choose a different key for each wheel."; return; }
+            if (office.Text.Trim().Length > 0 && !Tabrilo.Processing.OfficeRenderer.Available(office.Text.Trim()))
+            { state.Status = "Choose an existing LibreOffice soffice.com executable."; return; }
             var desired = preferences with
             {
-                Appearance = (string)appearance.SelectedItem, DragModifier = (string)modifier.SelectedItem,
-                DragButton = (string)dragButton.SelectedItem, JpegQuality = jpgQuality, WebPQuality = webQuality,
+                Appearance = (string)appearance.SelectedItem, ModeKeys = bindings,
+                ShowWebP = optionalWebP.IsChecked == true, OfficeExecutable = office.Text.Trim(), JpegQuality = jpgQuality, WebPQuality = webQuality,
                 KeepHistory = history.IsChecked == true, UseTray = tray.IsChecked == true, StartAtLogin = startup.IsChecked == true,
                 ExportDirectory = export, ClipboardDirectory = clip,
-                Shortcuts = shortcuts, Favorites = favorites.Select(item => item.Id).ToArray(),
+                Shortcuts = shortcuts,
                 Recent = history.IsChecked == true ? preferences.Recent : []
             };
             TryDesktop(() =>

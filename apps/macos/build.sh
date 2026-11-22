@@ -8,6 +8,6 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 bundle="$root/artifacts/macos/Tabrilo.app"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 cp "$root/apps/macos/Info.plist" "$bundle/Contents/Info.plist"
-cp "$root/shared/contracts/commands.json" "$root/shared/contracts/formats.json" "$bundle/Contents/Resources/"
-xcrun swiftc -framework AppKit "$root/apps/macos/Sources/main.swift" -o "$bundle/Contents/MacOS/Tabrilo"
+cp "$root/shared/contracts/wheel.json" "$root/shared/contracts/commands.json" "$root/shared/contracts/formats.json" "$bundle/Contents/Resources/"
+xcrun swiftc -framework AppKit "$root"/apps/macos/Sources/*.swift -o "$bundle/Contents/MacOS/Tabrilo"
 printf '%s\n' "$bundle"

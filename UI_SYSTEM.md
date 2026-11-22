@@ -66,16 +66,14 @@ Do not display fabricated compression percentages or progress. Recalculate resul
 
 ## Radial action wheel
 
-Gesture: drag real files -> hold the configured activation modifier -> wheel appears near pointer -> deliberately select an action.
-Default drag modifier: Shift; make it configurable and avoid interfering with ordinary dragging when inactive.
-Use a bounded 6-8-slot arrangement, clear labels, and intentional secondary navigation for more actions.
-Use the visible sectors as drop targets. Leave the center neutral and show the active sector immediately.
-Default wheel diameter is approximately 320 logical units; keep it within the usable monitor area.
-Users can pin/reorder favorites. Context filtering may disable irrelevant commands but must not unpredictably reshuffle favorites.
-No command executes solely because of hover. Make drop/release/click semantics explicit and consistent, with Escape to cancel.
-Provide an in-app keyboard invocation for selected files and discoverable equivalents outside the wheel.
-For quick actions, execute from the wheel with defaults and show compact progress and result feedback.
-Use a small format or preset chooser where a decision is required. Leave Home and the foreground application undisturbed.
+Tap Shift, Control or Alt/Option during a file drag to choose Convert, Tools or Actions. Change modes in place.
+Anchor the graphite wheel near invocation within the monitor work area. The shared diameter is 328 logical units.
+The top slice is index zero. Angles increase clockwise. Match the visible sectors exactly when hit testing.
+Convert shows the supported formats directly. Tools reflects the full selection and Actions keeps six fixed positions.
+The center and gaps are neutral. Releasing there or outside dismisses the wheel with no command.
+Returning while still holding the button is valid. Modifier release changes nothing. Escape latches cancellation.
+Keyboard mode exposes labeled actions, mode switching, focus navigation and Enter.
+Use small nonactivating progress and completion feedback with Cancel or Reveal. Jobs opens on request.
 Open the editor only when the action needs selection, configuration, or preview.
 Wheel navigation supports arrows, Tab, Enter, and Escape. Label all actions for accessibility.
 Test edge positioning, multi-monitor coordinates, mixed DPI, focus restoration, interrupted drags, and repeat invocations.
@@ -112,11 +110,11 @@ No-code-found, unsupported input, and cancelled scan are distinct outcomes.
 Keep long operations off the UI thread. Allow cancellation and show which inputs succeeded or failed.
 Use determinate progress only when measurable; otherwise a labeled busy state with cancellation.
 Export succeeds only after the output exists and validates; show its real location with Open/Reveal actions.
-Keep job progress and outcomes in one nonmodal Jobs window. Preserve errors and partial results until dismissal.
+Keep job outcomes available from Jobs and show compact feedback near the user’s work. Preserve errors and partial results until dismissal.
 Provide concise actionable errors and optional sanitized technical detail, not raw stack traces in primary UI.
 Updates show availability, version, and consent; do not restart mid-operation or hide a failed signature as a network success.
 An unconfigured update channel is labeled as such. A missing feed is not equivalent to an up-to-date application.
-Startup/tray behavior is opt-in and visible; Close and Quit must have clear, predictable meanings.
+Make tray behavior visible. Launch at login is opt-in. Distinguish closing Home from Quit.
 
 ## Accessibility and visual verification
 

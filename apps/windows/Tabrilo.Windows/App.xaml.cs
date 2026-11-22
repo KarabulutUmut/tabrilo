@@ -8,6 +8,7 @@ using Tabrilo.Core;
 namespace Tabrilo.Windows;
 public partial class App : Application
 {
+    private System.Threading.Mutex? instance;
     internal static string[] InputPaths { get; private set; } = [];
     internal static string BuildName { get; } = BuildTitle();
 
@@ -20,6 +21,8 @@ public partial class App : Application
         return Updates.Configured ? $"Tabrilo {version}" : $"Tabrilo Development · {version} · {commit}";
     }
 
+    protected override void OnExit(ExitEventArgs e) { instance?.Dispose(); base.OnExit(e); }
+
     protected override void OnStartup(StartupEventArgs args)
     {
         base.OnStartup(args);
@@ -28,6 +31,13 @@ public partial class App : Application
             var ready = Commands.All.Count > 0 &&
                 File.Exists(Path.Combine(AppContext.BaseDirectory, "tools", "qpdf", "qpdf.exe"));
             Shutdown(ready ? 0 : 1);
+            return;
+        }
+        instance = new System.Threading.Mutex(true, @"Local\Tabrilo-Wheel", out var first);
+        if (!first)
+        {
+            MessageBox.Show($"Quit the running Tabrilo instance from its tray menu, then open {BuildName}.", "Tabrilo already running");
+            Shutdown(2);
             return;
         }
         InputPaths = args.Args.Where(Path.IsPathFullyQualified).ToArray();
