@@ -30,6 +30,12 @@ archive copies and NuGet packages are cached under `.tools` and `.nuget`.
 For a build without tests, run `.\scripts\build.ps1 -Configuration Release`
 after restoring tools.
 
+After reviewing a dependency bump in a clean worktree, run
+`.\scripts\refresh-locks.ps1` using the pinned SDK. Review the versions and
+content hashes in every changed `packages.lock.json`, then verify the
+committed changes with a locked restore in a clean checkout. CI uses locked
+restore for the Windows build.
+
 Build an unsigned local development payload with
 `.\scripts\package.ps1 -Configuration Release -PayloadOnly`. To compile
 the local installer, first run `.\scripts\restore-tools.ps1 -Installer`
