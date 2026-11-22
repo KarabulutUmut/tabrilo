@@ -148,8 +148,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func quit() { cancelJob(); NSApp.terminate(nil) }
 }
 
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.setActivationPolicy(.accessory)
-app.run()
+if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--self-check" {
+    do {
+        try macSelfCheck(URL(fileURLWithPath: CommandLine.arguments[2]))
+        print("AppKit contract, hit geometry, PDF raster and combined image export passed.")
+    } catch { FileHandle.standardError.write(Data(error.localizedDescription.utf8)); exit(1) }
+} else {
+    MainActor.assumeIsolated {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.setActivationPolicy(.accessory)
+        app.run()
+    }
+}
