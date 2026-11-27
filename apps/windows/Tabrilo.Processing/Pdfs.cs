@@ -266,6 +266,7 @@ public sealed partial class Pdfs(string qpdfPath)
         await source.RenderToStreamAsync(stream, new PdfPageRenderOptions
         {
             DestinationWidth = width, DestinationHeight = height,
+            IsIgnoringHighContrast = true,
             BitmapEncoderId = Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId
         }).AsTask(token);
         stream.Seek(0);

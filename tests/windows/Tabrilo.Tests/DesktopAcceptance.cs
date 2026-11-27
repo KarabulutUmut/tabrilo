@@ -58,6 +58,7 @@ public sealed class DesktopAcceptance(string picture, string document, string ev
                 editor.Close();
             }
             var pdf = new Pdfs(Path.Combine(AppContext.BaseDirectory, "tools/qpdf/qpdf.exe"));
+            await VerifyExportColor(pdf);
             var info = await pdf.InspectAsync(document, null, default);
             var pages = Enumerable.Range(1, info.Pages).Select(i => new PdfPageChoice(document, i)).ToArray();
             var rendered = 0;
@@ -152,6 +153,30 @@ public sealed class DesktopAcceptance(string picture, string document, string ev
         if (root is Button button) yield return button;
         foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
             foreach (var descendant in LogicalButtons(child)) yield return descendant;
+    }
+
+    private async Task VerifyExportColor(Pdfs pdf)
+    {
+        var path = Path.Combine(evidence, "color-check.pdf");
+        using (var fixture = new PdfSharp.Pdf.PdfDocument())
+        {
+            var page = fixture.AddPage();
+            page.Width = PdfSharp.Drawing.XUnit.FromPoint(72);
+            page.Height = PdfSharp.Drawing.XUnit.FromPoint(72);
+            using (var graphics = PdfSharp.Drawing.XGraphics.FromPdfPage(page))
+                graphics.DrawRectangle(new PdfSharp.Drawing.XSolidBrush(PdfSharp.Drawing.XColor.FromArgb(40, 120, 185)), 0, 0, 72, 72);
+            fixture.Save(path);
+        }
+        using var document = await pdf.OpenForRenderingAsync(path, null, default);
+        var result = await Pdfs.RenderPageAsync(document, 1, 96, ImageFormat.Png, default);
+        using var stream = new MemoryStream(result.Bytes);
+        var png = new PngBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+        var bitmap = new FormatConvertedBitmap(png.Frames[0], PixelFormats.Bgra32, null, 0);
+        var pixel = new byte[4];
+        bitmap.CopyPixels(new Int32Rect(48, 48, 1, 1), pixel, 4, 0);
+        if (Math.Abs(pixel[0] - 185) > 2 || Math.Abs(pixel[1] - 120) > 2 || Math.Abs(pixel[2] - 40) > 2 || pixel[3] != 255)
+            throw new InvalidDataException($"Desktop appearance changed the exported PDF color: {Convert.ToHexString(pixel)}.");
+        Console.WriteLine($"PDF export BGRA={Convert.ToHexString(pixel)}, high contrast={SystemParameters.HighContrast}.");
     }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]

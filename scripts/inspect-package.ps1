@@ -11,8 +11,13 @@ $id = Get-Content "$payload/package-identity.json" -Raw | ConvertFrom-Json
 $receipt = Get-Item "$payload/payload.receipt"
 $digest = (Get-FileHash -LiteralPath $setup.FullName).Hash
 $expected = (Get-Content -LiteralPath "$($setup.FullName).sha256" -Raw).Trim()
+$identityPattern = if ($id.channel -eq 'isolated-test') { 'Tabrilo-Isolated(?:-[a-f0-9]{12})?' } else { 'Tabrilo' }
+$suffix = [regex]::Escape("-$($id.version)-win-x64-$($id.flavor)-Setup.exe")
+if ($setup.Name -cnotmatch "^(?<product>$identityPattern)$suffix$") { throw 'Setup filename differs from the package identity.' }
+$description = "$($Matches.product) Windows x64 $($id.flavor) installer"
 if ($expected -ne "$digest  $($setup.Name)" -or (Get-Content $receipt.FullName -TotalCount 1) -ne $id.flavor -or
-    $setup.Name -notlike "*-$($id.version)-win-x64-$($id.flavor)-Setup.exe" -or $setup.VersionInfo.ProductVersion -ne $id.version) {
+    $setup.VersionInfo.ProductName -cne 'Tabrilo' -or $setup.VersionInfo.FileDescription -cne $description -or
+    $setup.VersionInfo.ProductVersion -ne $id.version) {
     throw 'The installer, identity, checksum or edition receipt differs.'
 }
 $check = Join-Path $setup.DirectoryName 'PayloadReceipt.exe'
