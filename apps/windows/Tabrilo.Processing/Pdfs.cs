@@ -31,8 +31,18 @@ public sealed partial class Pdfs(string qpdfPath)
 
     private sealed record Details(PdfInfo Info, JsonObject Trailer, JsonObject Objects, JsonNode Header, JsonArray Pages, JsonArray Outlines)
     {
-        public JsonNode? Resolve(JsonNode? value) => value is JsonValue scalar && scalar.TryGetValue<string>(out var reference)
-            && Objects["obj:" + reference] is JsonObject entry ? entry["value"] : value;
+        public JsonNode? Resolve(JsonNode? value) => ResolveValue(Objects, value);
+    }
+
+    private static JsonNode? ResolveValue(JsonObject objects, JsonNode? value)
+    {
+        for (var depth = 0; value is JsonValue scalar && scalar.TryGetValue<string>(out var reference) &&
+            objects["obj:" + reference] is JsonObject entry; depth++)
+        {
+            if (depth >= 32) throw new InvalidDataException("A PDF reference is cyclic or too deeply nested.");
+            value = entry["value"];
+        }
+        return value;
     }
 
     private async Task<Details> ReadDetails(
@@ -62,7 +72,7 @@ public sealed partial class Pdfs(string qpdfPath)
         var count = json["pages"]!.AsArray().Count;
         if (count is 0 or > 2000) throw new InvalidDataException("The PDF is outside the supported 1–2000 page range.");
         var flags = new StructureFlags();
-        InspectStructure(objects, flags, token);
+        InspectStructure(objects, objects, flags, token);
         return new(new PdfInfo(count, json["encrypt"]!["encrypted"]!.GetValue<bool>(), flags.Signed,
             flags.Active, flags.Complex, fields, flags.Extras), trailer, objects, sections[0]!, json["pages"]!.AsArray(), json["outlines"]!.AsArray());
     }
@@ -75,29 +85,31 @@ public sealed partial class Pdfs(string qpdfPath)
         public bool Extras;
     }
 
-    private static void InspectStructure(JsonNode? node, StructureFlags flags, CancellationToken token)
+    private static void InspectStructure(JsonNode? node, JsonObject objects, StructureFlags flags, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         if (node is JsonArray array)
         {
-            foreach (var value in array) InspectStructure(value, flags, token);
+            foreach (var value in array) InspectStructure(value, objects, flags, token);
             return;
         }
         if (node is not JsonObject obj) return;
         foreach (var (key, value) in obj)
         {
-            if (key is "/ByteRange" or "/DocMDP" || key is "/Type" or "/FT" && IsName(value, "/Sig"))
+            var resolved = key is "/OpenAction" or "/Type" or "/FT" or "/S" or "/Subtype" ? ResolveValue(objects, value) : value;
+            if (key is "/ByteRange" or "/DocMDP" || key is "/Type" or "/FT" && IsName(resolved, "/Sig"))
                 flags.Signed = true;
-            if (key == "/OpenAction" && value is not JsonArray || key is "/AA" or "/JavaScript" or "/JS" or "/RichMedia" or "/XFA" ||
-                key == "/S" && (IsName(value, "/Launch") || IsName(value, "/SubmitForm") || IsName(value, "/GoToR")
-                    || IsName(value, "/GoToE") || IsName(value, "/ImportData") || IsName(value, "/URI") && !SafeUri(obj["/URI"])) ||
+            if (key == "/OpenAction" && resolved is not JsonArray || key is "/AA" or "/JavaScript" or "/JS" or "/RichMedia" or "/XFA" ||
+                key == "/S" && (IsName(resolved, "/Launch") || IsName(resolved, "/SubmitForm") || IsName(resolved, "/GoToR")
+                    || IsName(resolved, "/GoToE") || IsName(resolved, "/ImportData") || IsName(resolved, "/JavaScript")
+                    || IsName(resolved, "/URI") && !SafeUri(ResolveValue(objects, obj["/URI"]))) ||
                 key == "/F" && obj.ContainsKey("/Filter"))
                 flags.Active = true;
             if (key is "/StructTreeRoot" or "/Names" or "/Dests" or "/OpenAction") flags.Extras = true;
-            if (key == "/Subtype" && IsName(value, "/Widget") || key is "/AcroForm" or
+            if (key == "/Subtype" && IsName(resolved, "/Widget") || key is "/AcroForm" or
                 "/OCProperties" or "/Collection" or "/EmbeddedFiles" or "/Threads" or "/OutputIntents")
                 flags.Complex = true;
-            InspectStructure(value, flags, token);
+            InspectStructure(value, objects, flags, token);
         }
     }
 
@@ -218,7 +230,7 @@ public sealed partial class Pdfs(string qpdfPath)
                     cancellation.ThrowIfCancellationRequested();
                     using (var stream = new FileStream(draft, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                         document.Save(stream, closeStream: false);
-                    await worker.RunAsync([draft, "--stream-data=uncompress", "--object-streams=disable", path], null,
+                    await worker.RunAsync([draft, "--stream-data=compress", "--recompress-flate", "--object-streams=generate", path], null,
                         cancellation, normalizeGeneratedStreams: true);
                 }
                 finally { File.Delete(draft); }

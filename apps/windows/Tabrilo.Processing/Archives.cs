@@ -24,91 +24,79 @@ public static class Archives
         var stem = Path.GetFileNameWithoutExtension(input);
         if (stem.EndsWith(".tar", StringComparison.OrdinalIgnoreCase)) stem = Path.GetFileNameWithoutExtension(stem);
         OutputFiles.ValidateLeaf(stem);
-        var stage = Path.Combine(destination, ".tabrilo-extract-" + Guid.NewGuid().ToString("N"));
-        if (!CreateDirectory(stage, IntPtr.Zero))
-            throw new IOException("Could not create a new extraction staging directory.");
-        var published = false;
+        using var stage = new ExtractionStage(destination, destinationPin.Leaf);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(limits.Seconds));
         try
         {
-            using (var stagePin = new DirectoryPin(stage))
+            var writer = new Writer(stage, destination, limits, timeout.Token);
+            await using var file = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.Read,
+                65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            if (file.Length == 0 || file.Length > limits.TotalBytes)
+                throw new InvalidDataException("The archive size is outside the supported limits.");
+            var extension = Path.GetExtension(input).ToLowerInvariant();
+            switch (extension)
             {
-                var writer = new Writer(stage, limits, timeout.Token);
-                await using var file = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.Read,
-                    65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
-                if (file.Length == 0 || file.Length > limits.TotalBytes)
-                    throw new InvalidDataException("The archive size is outside the supported limits.");
-                var extension = Path.GetExtension(input).ToLowerInvariant();
-                switch (extension)
-                {
-                    case ".zip":
-                        using (var archive = new ZipArchive(file, ZipArchiveMode.Read, leaveOpen: true))
+                case ".zip":
+                    using (var archive = new ZipArchive(file, ZipArchiveMode.Read, leaveOpen: true))
+                    {
+                        foreach (var entry in archive.Entries)
                         {
-                            foreach (var entry in archive.Entries)
-                            {
-                                var type = (entry.ExternalAttributes >> 16) & 0xF000;
-                                var folder = entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\');
-                                if (entry.IsEncrypted || (entry.ExternalAttributes & (int)FileAttributes.ReparsePoint) != 0 ||
-                                    type is not (0 or 0x4000 or 0x8000) ||
-                                    type == 0x4000 && !folder || type == 0x8000 && folder)
-                                    throw new InvalidDataException("The ZIP contains encryption, a link or a special entry.");
-                                if (folder) writer.Directory(entry.FullName);
-                                else
-                                {
-                                    await using var content = entry.Open();
-                                    await writer.FileAsync(entry.FullName, content, entry.Length, entry.Crc32);
-                                }
-                            }
-                        }
-                        break;
-                    case ".tar":
-                        await ExtractTar(file, writer, timeout.Token);
-                        break;
-                    case ".gz":
-                    case ".tgz":
-                        // This decoder requires and validates the GZIP trailer when disposed.
-                        using (var gzip = new SharpCompress.Compressors.Deflate.GZipStream(file,
-                            SharpCompress.Compressors.CompressionMode.Decompress))
-                        {
-                            if (extension == ".tgz" || input.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
-                                await ExtractTar(gzip, writer, timeout.Token);
+                            var type = (entry.ExternalAttributes >> 16) & 0xF000;
+                            var folder = entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\');
+                            if (entry.IsEncrypted || (entry.ExternalAttributes & (int)FileAttributes.ReparsePoint) != 0 ||
+                                type is not (0 or 0x4000 or 0x8000) ||
+                                type == 0x4000 && !folder || type == 0x8000 && folder)
+                                throw new InvalidDataException("The ZIP contains encryption, a link or a special entry.");
+                            if (folder) writer.Directory(entry.FullName);
                             else
-                                await writer.FileAsync(Path.GetFileNameWithoutExtension(input), gzip, null);
-                        }
-                        break;
-                    case ".rar":
-                        using (var archive = RarArchive.OpenArchive(file))
-                        {
-                            if (archive.IsEncrypted || !archive.IsComplete || archive.Volumes.Count() != 1 ||
-                                archive.Volumes.Any(volume => volume is not RarVolume { IsMultiVolume: false }))
-                                throw new InvalidDataException("Only complete, unencrypted, single-volume RAR archives are supported.");
-                            if (archive.IsSolid)
                             {
-                                using var reader = archive.ExtractAllEntries();
-                                while (reader.MoveToNextEntry())
-                                    await WriteRarEntry(reader.Entry, reader.OpenEntryStream, writer);
+                                await using var content = entry.Open();
+                                await writer.FileAsync(entry.FullName, content, entry.Length, entry.Crc32);
                             }
-                            else foreach (var entry in archive.Entries)
-                                await WriteRarEntry(entry, entry.OpenEntryStream, writer);
                         }
-                        break;
-                    default: throw new NotSupportedException("Choose ZIP, TAR, GZIP, TAR.GZ, TGZ or RAR.");
-                }
-                if (writer.Entries == 0) throw new InvalidDataException("The archive has no extractable entries.");
+                    }
+                    break;
+                case ".tar":
+                    await ExtractTar(file, writer, timeout.Token);
+                    break;
+                case ".gz":
+                case ".tgz":
+                    // This decoder requires and validates the GZIP trailer when disposed.
+                    using (var gzip = new SharpCompress.Compressors.Deflate.GZipStream(file,
+                        SharpCompress.Compressors.CompressionMode.Decompress))
+                    {
+                        if (extension == ".tgz" || input.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
+                            await ExtractTar(gzip, writer, timeout.Token);
+                        else
+                            await writer.FileAsync(Path.GetFileNameWithoutExtension(input), gzip, null);
+                    }
+                    break;
+                case ".rar":
+                    using (var archive = RarArchive.OpenArchive(file))
+                    {
+                        if (archive.IsEncrypted || !archive.IsComplete || archive.Volumes.Count() != 1 ||
+                            archive.Volumes.Any(volume => volume is not RarVolume { IsMultiVolume: false }))
+                            throw new InvalidDataException("Only complete, unencrypted, single-volume RAR archives are supported.");
+                        if (archive.IsSolid)
+                        {
+                            using var reader = archive.ExtractAllEntries();
+                            while (reader.MoveToNextEntry())
+                                await WriteRarEntry(reader.Entry, reader.OpenEntryStream, writer);
+                        }
+                        else foreach (var entry in archive.Entries)
+                            await WriteRarEntry(entry, entry.OpenEntryStream, writer);
+                    }
+                    break;
+                default: throw new NotSupportedException("Choose ZIP, TAR, GZIP, TAR.GZ, TGZ or RAR.");
             }
+            if (writer.Entries == 0) throw new InvalidDataException("The archive has no extractable entries.");
 
-            timeout.Token.ThrowIfCancellationRequested();
             for (var index = 0; index < 1000; index++)
             {
-                var output = Path.Combine(destination, OutputFiles.Candidate(stem + " extracted", index));
-                try
-                {
-                    Directory.Move(stage, output);
-                    published = true;
-                    return output;
-                }
-                catch (IOException) when (File.Exists(output) || Directory.Exists(output)) { }
+                timeout.Token.ThrowIfCancellationRequested();
+                var leaf = OutputFiles.Candidate(stem + " extracted", index);
+                if (stage.TryPublish(leaf)) return Path.Combine(destination, leaf);
             }
             throw new IOException("Could not choose an extraction folder name.");
         }
@@ -119,10 +107,6 @@ public static class Archives
         catch (SharpCompressException error)
         {
             throw new InvalidDataException("The archive is incomplete, damaged, or uses unsupported RAR features.", error);
-        }
-        finally
-        {
-            if (!published) System.IO.Directory.Delete(stage, recursive: true);
         }
     }
 
@@ -165,7 +149,7 @@ public static class Archives
         }
     }
 
-    private sealed class Writer(string root, ArchiveLimits limits, CancellationToken token)
+    private sealed class Writer(ExtractionStage stage, string root, ArchiveLimits limits, CancellationToken token)
     {
         private readonly Dictionary<string, (string Spelling, bool Directory, bool Explicit)> paths =
             new(StringComparer.OrdinalIgnoreCase);
@@ -178,12 +162,10 @@ public static class Archives
 
         public async Task FileAsync(string name, Stream input, long? expected, uint? expectedCrc = null)
         {
-            var target = Resolve(name, folder: false);
-            using var pin = new DirectoryPin(Path.GetDirectoryName(target)!);
+            var (parent, leaf) = Resolve(name, folder: false);
             if (expected > limits.FileBytes || expected > limits.TotalBytes - totalBytes)
                 throw new InvalidDataException("An archive entry exceeds the configured byte limit.");
-            await using var file = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None,
-                65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            await using var file = stage.AddFile(parent, leaf);
             var buffer = new byte[65536];
             var crc = expectedCrc.HasValue ? new Crc32() : null;
             long bytes = 0;
@@ -219,7 +201,7 @@ public static class Archives
                 throw new TimeoutException("Extraction exceeded its time limit.");
         }
 
-        private string Resolve(string name, bool folder)
+        private (string Parent, string Leaf) Resolve(string name, bool folder)
         {
             CheckTime();
             if (++Entries > limits.Entries) throw new InvalidDataException("The archive contains too many entries.");
@@ -228,11 +210,12 @@ public static class Archives
             var segments = canonicalSeparators.Split('/');
             if (segments.Length > 32) throw new InvalidDataException("The archive directory nesting is too deep.");
             var relative = "";
-            var current = root;
+            var parent = "";
             for (var index = 0; index < segments.Length; index++)
             {
                 var segment = segments[index];
                 OutputFiles.ValidateLeaf(segment);
+                parent = relative;
                 relative = index == 0 ? segment : relative + "/" + segment;
                 if (relative.Length > 2048) throw new InvalidDataException("An archive path is too long.");
                 var key = relative.Normalize(NormalizationForm.FormC);
@@ -249,22 +232,12 @@ public static class Archives
                 {
                     if (paths.Count >= limits.Entries)
                         throw new InvalidDataException("The archive contains too many paths.");
-                    if (isDirectory)
-                    {
-                        using var parentPin = new DirectoryPin(current);
-                        if (!CreateDirectory(Path.Combine(current, segment), IntPtr.Zero))
-                            throw new IOException("Could not create a new archive subdirectory.");
-                    }
+                    if (isDirectory) stage.AddDirectory(relative, parent, segment);
                     paths.Add(key, (relative, isDirectory, explicitEntry));
                 }
-                current = Path.Combine(current, segment);
             }
-            return current;
+            return (parent, segments[^1]);
         }
     }
 
-    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode,
-        SetLastError = true, EntryPoint = "CreateDirectoryW")]
-    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static extern bool CreateDirectory(string path, IntPtr security);
 }

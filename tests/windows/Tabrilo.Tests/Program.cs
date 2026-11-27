@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -38,6 +39,9 @@ var checks = new (string Name, Func<Task> Run)[]
     ("Multiple local QR results", ReadQr),
     ("ZIP, TAR, GZIP and TGZ publication", ArchiveFormats),
     ("Archive path, size and disk limits", ArchiveGuards),
+    ("Extraction stage identity through rollback", StageOwnership),
+    ("Move validation and per-item cancellation", MoveOutcomes),
+    ("Image PDF encoding and indirect PDF navigation", PdfRepresentations),
     ("PDF properties, structural edits and WinRT render", PdfRewrite),
     ("Wheel modes and PDF navigation", ThreeWheel),
     ("PDF conservative and lossy compression", PdfCompress),
@@ -346,6 +350,130 @@ async Task ArchiveGuards()
     Require(!Directory.EnumerateDirectories(folder).Any(), "archive failure does not publish or leave staging");
 }
 
+async Task StageOwnership()
+{
+    var folder = Folder("stage-ownership");
+    var marker = Path.Combine(folder, "existing");
+    await File.WriteAllTextAsync(marker, "keep");
+    using var pin = new DirectoryPin(folder);
+    var stage = new ExtractionStage(folder, pin.Leaf);
+    var root = Directory.GetDirectories(folder).Single();
+    stage.AddDirectory("nested", "", "nested");
+    using (var file = stage.AddFile("nested", "owned")) file.WriteByte(1);
+    await Expect<IOException>(() => Task.Run(() => Directory.Move(root, root + "-other")));
+    Require(!stage.TryPublish("existing"), "native no-replace collision");
+    // A different object at the old name must survive rollback.
+    var entry = Path.Combine(root, "nested", "owned");
+    File.Move(entry, Path.Combine(folder, "retained"));
+    File.WriteAllText(entry, "unrelated");
+    await Expect<IOException>(() => Task.Run(stage.Dispose));
+    Require(File.ReadAllText(entry) == "unrelated" && File.ReadAllText(marker) == "keep", "unrelated identities preserved");
+    using (var cancelled = new ExtractionStage(folder, pin.Leaf))
+    {
+        using (cancelled.AddFile("", "partial")) { }
+        Require(!cancelled.TryPublish("existing"), "publication refused");
+    }
+    Require(Directory.GetDirectories(folder).SequenceEqual([root]), "fully owned stage rolled back after publication failure");
+}
+
+Task MoveOutcomes()
+{
+    var folder = Folder("move");
+    var source = Directory.CreateDirectory(Path.Combine(folder, "Grüße & spaces")).FullName;
+    var child = Directory.CreateDirectory(Path.Combine(source, "child")).FullName;
+    var file = Path.Combine(source, "item.txt");
+    File.WriteAllText(file, "original");
+    var hash = Hash(file);
+    var target = Directory.CreateDirectory(Path.Combine(folder, "Grüße & spaces sibling")).FullName;
+    foreach (var invalid in new[] { source, child })
+        Require(FileActions.Move([source], invalid, default).Single().Message!.Contains("outside") && Hash(file) == hash, "cycle rejection");
+    var collision = Path.Combine(target, "item.txt");
+    File.WriteAllText(collision, "conflict");
+    Require(FileActions.Move([file], target, default).Single().Output == null && File.ReadAllText(collision) == "conflict" &&
+        Hash(file) == hash, "existing item preserved");
+    Require(FileActions.Move([file + ".missing"], target, default).Single().Output == null, "missing source reported");
+    File.Delete(collision);
+    using var stop = new CancellationTokenSource();
+    var results = FileActions.Move([file, child], target, stop.Token, _ => stop.Cancel());
+    Require(results[0].Output == collision && Hash(collision) == hash && results[1].Cancelled && Directory.Exists(child), "partial batch with one committed move");
+    Require(FileActions.Move([source], target, default).Single().Output is { } moved &&
+        Directory.Exists(Path.Combine(moved, "child")), "folder move after error");
+    return Task.CompletedTask;
+}
+
+async Task PdfRepresentations()
+{
+    var folder = Folder("pdf-representations");
+    var pdf = new Pdfs(qpdf);
+    var fixture = Path.Combine(repository, "tests/fixtures/navigation.pdf");
+    var original = Hash(fixture);
+    var template = Path.Combine(folder, "template.json");
+    await ProcessExit(qpdf, [fixture, "--json-output", template]);
+    foreach (var indirect in new[] { false, true })
+    {
+        var json = JsonNode.Parse(File.ReadAllText(template))!;
+        var objects = json["qpdf"]![1]!.AsObject();
+        var catalog = objects["obj:" + objects["trailer"]!["value"]!["/Root"]]!["value"]!;
+        var destination = new JsonArray("6 0 R", "/Fit");
+        var action = objects["obj:3 0 R"]!["value"]!["/A"]!;
+        if (indirect)
+        {
+            objects["obj:101 0 R"] = new JsonObject { ["value"] = destination };
+            objects["obj:102 0 R"] = new JsonObject { ["value"] = action["/URI"]!.DeepClone() };
+            catalog["/OpenAction"] = "101 0 R";
+            action["/URI"] = "102 0 R";
+        }
+        else catalog["/OpenAction"] = destination;
+        var spec = Path.Combine(folder, indirect + ".json");
+        var path = Path.Combine(folder, indirect + ".pdf");
+        File.WriteAllText(spec, json.ToJsonString());
+        await ProcessExit(qpdf, ["--json-input", spec, path]);
+        Require(!(await pdf.InspectAsync(path, null, default)).Interactive, "benign destinations and URI");
+        await Expect<NotSupportedException>(() => pdf.SplitAsync(path, [[1]], folder, false, default));
+        var split = await pdf.SplitAsync(path, [[1]], folder, true, default);
+        using var decoded = PdfSharp.Pdf.IO.PdfReader.Open(split);
+        Require(decoded.PageCount == 1 && decoded.Pages[0].Annotations.Count == 3, "passive annotations survive split");
+        if (indirect)
+        {
+            objects["obj:102 0 R"]!["value"] = "u:file:///unavailable";
+            File.WriteAllText(spec, json.ToJsonString());
+            var unsafePath = Path.Combine(folder, "unsupported-uri.pdf");
+            await ProcessExit(qpdf, ["--json-input", spec, unsafePath]);
+            Require((await pdf.InspectAsync(unsafePath, null, default)).Interactive, "unsupported indirect URI rejected");
+        }
+    }
+    Require(Hash(fixture) == original, "original navigation fixture preserved");
+    var flat = Path.Combine(folder, "flat.png");
+    WriteBitmap(flat, 720, 480, (x, y) => x < 240 || y < 150 ? ((byte)28, (byte)92, (byte)68, (byte)255) : ((byte)250, (byte)205, (byte)149, (byte)255));
+    var inputs = new List<string> { flat };
+    if (Environment.GetEnvironmentVariable("TABRILO_TEST_PHOTO") is { Length: > 0 } photo) inputs.Add(photo);
+    else Console.WriteLine("Coverage skipped: photographic JPEG (TABRILO_TEST_PHOTO).");
+    foreach (var input in inputs)
+    {
+        var before = Hash(input);
+        var clock = Stopwatch.StartNew();
+        var output = await pdf.FromImagesAsync([input], folder, new(720, 480, 0), default);
+        var elapsed = clock.ElapsedMilliseconds;
+        var plain = output + ".plain.pdf";
+        await ProcessExit(qpdf, [output, "--stream-data=uncompress", "--object-streams=disable", plain]);
+        using var a = await pdf.OpenForRenderingAsync(output, null, default);
+        using var b = await pdf.OpenForRenderingAsync(plain, null, default);
+        var render = await Pdfs.RenderPageAsync(a, 1, 72, ImageFormat.Png, default);
+        var reference = await Pdfs.RenderPageAsync(b, 1, 72, ImageFormat.Png, default);
+        Require(a.PageCount == 1 && render.Width == 720 && render.Height == 480 &&
+            render.Bytes.SequenceEqual(reference.Bytes) && Hash(input) == before, "same rendered pixels and geometry");
+        if (input == flat)
+        {
+            var bitmap = Decode(await Images.SaveAsync(render, folder, "decoded-flat", default));
+            Require(Pixel(bitmap, 100, 100)[0] < 40 && Pixel(bitmap, 600, 350)[0] > 240, "corner orientation and color");
+        }
+        var bytes = new FileInfo(output).Length;
+        var expanded = new FileInfo(plain).Length;
+        Require(bytes < expanded, "smaller representative image PDF");
+        Console.WriteLine($"Image PDF {Path.GetFileName(input)}: {bytes} vs {expanded} bytes, {elapsed} ms, suite peak {Process.GetCurrentProcess().PeakWorkingSet64} bytes.");
+    }
+}
+
 async Task PdfRewrite()
 {
     var folder = Folder("pdf");
@@ -432,12 +560,26 @@ async Task OfficeLayouts(string engine)
     var folder = Folder("office");
     var pdf = new Pdfs(qpdf);
     var renderer = new OfficeRenderer(engine, pdf);
+    var blocked = Path.Combine(folder, "linked.docx");
+    File.Copy(Path.Combine(repository, "tests/fixtures/layout.docx"), blocked);
+    using (var archive = ZipFile.Open(blocked, ZipArchiveMode.Update))
+    using (var output = new StreamWriter(archive.CreateEntry("word/relationships.rels").Open()))
+        output.Write("""<Relationships><Relationship Type="image" TargetMode="External" Target="https://example.invalid/sample.png"/></Relationships>""");
+    var blockedHash = Hash(blocked);
+    await Expect<NotSupportedException>(() => renderer.RenderAsync(blocked, _ => throw new Exception("Unexpected output"), default));
+    Require(Hash(blocked) == blockedHash, "Office external resource rejection preserved source");
+    string? previousRoot = null;
     foreach (var ext in new[] { "docx", "pptx" })
     {
         var source = Path.Combine(repository, "tests/fixtures/layout." + ext);
         var hash = Hash(source);
         await renderer.RenderAsync(source, async path =>
         {
+            var root = Path.GetDirectoryName(path)!;
+            Require(previousRoot != root && Directory.Exists(Path.Combine(root, "profile", "user")), "per-render private profile");
+            previousRoot = root;
+            using var stop = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+            await Expect<OperationCanceledException>(() => renderer.RenderAsync(source, _ => throw new Exception("Cancelled work ran"), stop.Token));
             using var inspect = PdfSharp.Pdf.IO.PdfReader.Open(path);
             Require(inspect.PageCount == 2, ext + " page count");
             File.Copy(path, Path.Combine(folder, ext + ".pdf"));
@@ -450,7 +592,7 @@ async Task OfficeLayouts(string engine)
             }
             return path;
         }, default);
-        Require(Hash(source) == hash, "Office source preserved");
+        Require(Hash(source) == hash && !Directory.Exists(previousRoot), "Office source preserved and private profile removed");
     }
 }
 

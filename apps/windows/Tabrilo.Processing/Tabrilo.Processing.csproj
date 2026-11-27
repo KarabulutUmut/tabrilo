@@ -4,6 +4,7 @@
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Tabrilo.Tests" />
     <ProjectReference Include="../Tabrilo.Core/Tabrilo.Core.csproj" />
     <PackageReference Include="Magick.NET-Q8-x64" />
     <PackageReference Include="PDFsharp" />
