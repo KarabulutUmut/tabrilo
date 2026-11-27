@@ -26,12 +26,19 @@ public static class DesktopContrast {
     $contrast.Flags = $contrast.Flags -bor 1
     if (![DesktopContrast]::Parameters(0x43, $contrast.Size, [ref]$contrast, 2)) { throw 'Cannot enable hosted contrast.' }
 }
+$started = Get-Date
 try {
     Invoke-TabriloDotnet @('run','--project',$TabriloProjects.Tests,'-c','Release','--no-build','--','--desktop',$imagePath,$pdf)
     if ($HostedHighContrast) {
         $report = Get-ChildItem "$TabriloRoot/artifacts/tests/*/desktop.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
         if (!$report -or !(Get-Content $report.FullName -Raw | ConvertFrom-Json).highContrast) { throw 'WPF did not observe system high contrast.' }
     }
+} catch {
+    if ($HostedHighContrast) {
+        Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=$started; Id=1000,1001,1026} -ErrorAction SilentlyContinue |
+            Select-Object -First 6 TimeCreated,ProviderName,Message | Format-List | Out-Host
+    }
+    throw
 } finally {
     if ($HostedHighContrast -and ![DesktopContrast]::Parameters(0x43, $original.Size, [ref]$original, 2)) { throw 'Could not restore hosted contrast.' }
 }

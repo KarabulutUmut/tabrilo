@@ -30,12 +30,14 @@ internal sealed class DesktopAcceptance(string picture, string document, string 
                 app.Resources = (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(dictionary.ToString());
                 app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 exitCode = app.Run();
+                Console.WriteLine("WPF dispatcher exited " + exitCode);
             }
             catch (Exception ex) { failure = ex; }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         thread.Join();
+        Console.WriteLine("Desktop STA exited.");
         if (failure != null) throw new InvalidOperationException("Desktop acceptance failed.", failure);
         return exitCode;
     }
@@ -122,26 +124,39 @@ internal sealed class DesktopAcceptance(string picture, string document, string 
                 if (i < 3) await Save(wheel, "wheel-" + mode);
                 wheel.Close();
             }
-            using var jobs = new JobResults();
-            var workArea = System.Windows.Forms.Screen.FromPoint(System.Windows.Forms.Cursor.Position).WorkingArea;
-            var progress = jobs.Start("Compress image", stop.Cancel, workArea, false);
-            var notice = Windows.OfType<Window>().Single(w => w.Title == "Tabrilo" && w.IsVisible);
-            await Save(notice, "feedback");
-            var cancelled = Stopwatch.StartNew();
-            stop.Cancel();
-            try { await workload; } catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
-            cancelled.Stop();
-            progress.Finish("Cancelled");
-            if (count is 0 or 200) throw new InvalidOperationException("The load did not overlap cancellation.");
-            var report = new { build = App.BuildName, wheelCount = timings.Count, medianMs = timings.Order().ElementAt(12),
+            using (var jobs = new JobResults())
+            {
+                var workArea = System.Windows.Forms.Screen.FromPoint(System.Windows.Forms.Cursor.Position).WorkingArea;
+                var progress = jobs.Start("Compress image", stop.Cancel, workArea, false);
+                var notice = Windows.OfType<Window>().Single(w => w.Title == "Tabrilo" && w.IsVisible);
+                await Save(notice, "feedback");
+                var cancelled = Stopwatch.StartNew();
+                stop.Cancel();
+                try { await workload; } catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+                cancelled.Stop();
+                progress.Finish("Cancelled");
+                if (count is 0 or 200) throw new InvalidOperationException("The load did not overlap cancellation.");
+                var report = new { build = App.BuildName, wheelCount = timings.Count, medianMs = timings.Order().ElementAt(12),
                 maxMs = timings.Max(), completedEncodes = count, cancelMs = cancelled.Elapsed.TotalMilliseconds,
                 workingSetBefore = memoryBefore, workingSetAfter = Environment.WorkingSet, highContrast = SystemParameters.HighContrast,
                 displays = System.Windows.Forms.Screen.AllScreens.Select(s => new { s.DeviceName, s.Bounds.X, s.Bounds.Y, s.Bounds.Width, s.Bounds.Height, dpi = displayDpi[s.DeviceName] }) };
-            File.WriteAllText(Path.Combine(evidence, "desktop.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
-            Console.WriteLine("Visible WPF windows, focus, real rendering and bounded load passed. " + evidence);
+                File.WriteAllText(Path.Combine(evidence, "desktop.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+            }
+            var quit = LogicalButtons(home).Single(button => Equals(button.Content, "Quit Tabrilo"));
+            quit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await System.Windows.Threading.Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            if (Windows.OfType<Window>().Any(window => window.IsVisible)) throw new IOException("A test window remained open after Quit.");
+            Console.WriteLine("Visible WPF windows, focus, real rendering, bounded load and native Quit passed. " + evidence);
             Shutdown(0);
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); Shutdown(1); }
+    }
+
+    private static IEnumerable<Button> LogicalButtons(DependencyObject root)
+    {
+        if (root is Button button) yield return button;
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+            foreach (var descendant in LogicalButtons(child)) yield return descendant;
     }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
