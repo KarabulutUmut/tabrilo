@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "editions": {
+    "core": { "offlineOffice": false, "configuredLocalRenderer": true },
+    "office": { "offlineOffice": true, "configuredLocalRenderer": true }
+  },
+  "identity": ["os", "architecture", "channel", "version", "build", "sourceCommit", "flavor"],
+  "output": { "separate": "source-parent", "combinedAcrossParents": "choose-folder", "clipboard": "configured-or-choose",
+    "unwritableParent": "choose-folder", "multiplePages": "new-sibling-directory", "collision": "numeric-suffix" },
+  "updates": { "match": ["os", "architecture", "channel", "flavor"], "versionOrder": "strictly-increasing",
+    "editionChanges": "explicit-newer-installer", "maximumInstallerBytes": 1073741824,
+    "connectionSeconds": 30, "inactivitySeconds": 90, "overallSeconds": 7200 },
+  "deferred": ["pdf-to-editable-docx", "pdf-to-editable-pptx"]
+}

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "windows-x64": {
+    "core": ["nuget", "runtime", "magick-native", "qpdf-runtime", "nsis"],
+    "office": ["nuget", "runtime", "magick-native", "qpdf-runtime", "nsis", "libreoffice"]
+  },
+  "components": {
+    "nuget": { "inventory": "licenses/components.json", "digests": "NuGet SHA-512 content hashes", "status": "recorded" },
+    "runtime": { "origin": "Microsoft .NET and WindowsDesktop x64 runtime packs", "version": "10.0.15", "inventory": "licenses/components.json", "status": "recorded" },
+    "magick-native": {
+      "binary": "Magick.Native-Q8-x64.dll", "version": "Magick.NET 15.1.0",
+      "inventory": "licenses/components.json", "notices": "licenses/magick.net-q8-x64-Notice.txt",
+      "status": "blocked",
+      "sourceManifest": "licenses/Upstream/Magick-Native-sources.json",
+      "required": "The signed DLL matches all PE sections of vendor build 2026.1101.825. Supply matching delegate source/link inputs and demonstrate a replacement build with the pinned static Q8 x64 configuration and VS 2026 toolchain."
+    },
+    "qpdf-runtime": {
+      "version": "12.4.2-msvc64", "inventory": "licenses/components.json", "notices": "licenses/Upstream/qpdf-NOTICE.txt",
+      "terms": "https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files",
+      "status": "blocked", "required": "Confirm the distributor holds applicable Visual Studio redistribution rights for the bundled Microsoft CRT DLLs and verify each basename against the matching REDIST list."
+    },
+    "nsis": { "version": "3.13", "notices": "licenses/NSIS-COPYING.txt", "status": "recorded" },
+    "libreoffice": {
+      "version": "26.8.3.1", "sourceManifest": "licenses/Upstream/LibreOffice-sources.json",
+      "externalBuildInputs": "licenses/Upstream/LibreOffice-external.json",
+      "notices": ["tools/office/LICENSE.html", "tools/office/license.txt", "tools/office/NOTICE", "tools/office/CREDITS.fodt"],
+      "status": "blocked", "required": "Provide durable recipient access to matching source and reconcile the shipped MSI components with LICENSE.html. The external inventory is the release build's pinned input superset, including optional and non-Windows inputs."
+    }
+  }
+}

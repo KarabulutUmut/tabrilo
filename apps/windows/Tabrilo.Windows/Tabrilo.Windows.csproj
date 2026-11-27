@@ -5,21 +5,29 @@
     <OutputType>WinExe</OutputType>
     <AssemblyName>Tabrilo</AssemblyName>
     <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Tabrilo.ico</ApplicationIcon>
-    <Version>0.1.0</Version>
     <TabriloInstallIdentity Condition="'$(TabriloInstallIdentity)' == ''">Tabrilo</TabriloInstallIdentity>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <TabriloFlavor Condition="'$(TabriloFlavor)' == ''">core</TabriloFlavor>
+    <TabriloChannel Condition="'$(TabriloChannel)' == ''">development</TabriloChannel>
+    <DefineConstants Condition="'$(TabriloChannel)' == 'isolated-test'">$(DefineConstants);ISOLATED_ACCEPTANCE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Tabrilo.Processing/Tabrilo.Processing.csproj" />
     <PackageReference Include="NetSparkleUpdater.SparkleUpdater" />
+    <PackageReference Include="BouncyCastle.Cryptography" />
     <EmbeddedResource Include="../../../shared/design/tokens.json" LogicalName="Tabrilo.Tokens.json" />
     <EmbeddedResource Include="../../../shared/contracts/windows-update.json" LogicalName="Tabrilo.Updates.json" />
+    <EmbeddedResource Include="../../../shared/contracts/capabilities.json" LogicalName="Tabrilo.Capabilities.json" />
     <InternalsVisibleTo Include="Tabrilo.Tests" />
     <AssemblyMetadata Include="TabriloInstallIdentity" Value="$(TabriloInstallIdentity)" />
+    <AssemblyMetadata Include="Flavor" Value="$(TabriloFlavor)" />
+    <AssemblyMetadata Include="Channel" Value="$(TabriloChannel)" />
+    <AssemblyMetadata Include="IsolatedPublicKey" Value="$(TabriloIsolatedPublicKey)" Condition="'$(TabriloChannel)' == 'isolated-test'" />
     <Content Include="../../../.tools/qpdf/qpdf-12.4.2-msvc64/bin/qpdf.exe;../../../.tools/qpdf/qpdf-12.4.2-msvc64/bin/*.dll">
       <Link>tools/qpdf/%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

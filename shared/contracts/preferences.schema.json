@@ -6,8 +6,12 @@
   ],
   "properties": {
     "version": {
-      "const": 1
+      "enum": [1, 2]
     },
+    "modeKeys": { "type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": { "enum": ["Shift", "Ctrl", "Alt"] } },
+    "showWebP": { "type": "boolean" },
+    "checkUpdatesOnStartup": { "type": "boolean", "default": false },
+    "officeExecutable": { "type": ["string", "null"] },
     "appearance": {
       "enum": [
         "System",
@@ -32,11 +36,27 @@
         "Off"
       ]
     },
+    "dragButton": {
+      "enum": ["Primary", "Secondary"]
+    },
     "exportDirectory": {
       "type": [
         "string",
         "null"
       ]
+    },
+    "clipboardDirectory": {
+      "type": ["string", "null"]
+    },
+    "jpegQuality": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "webPQuality": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
     },
     "shortcuts": {
       "type": "object",

@@ -13,7 +13,7 @@ RequestExecutionLevel user
 SetCompressor zlib
 VIProductVersion "${APP_VERSION}.0"
 VIAddVersionKey "ProductName" "Tabrilo"
-VIAddVersionKey "FileDescription" "Tabrilo Windows x64 installer"
+VIAddVersionKey "FileDescription" "${PRODUCT_ID} Windows x64 ${FLAVOR} installer"
 VIAddVersionKey "FileVersion" "${APP_VERSION}"
 VIAddVersionKey "ProductVersion" "${APP_VERSION}"
 VIAddVersionKey "LegalCopyright" "Umut Karabulut and contributors"
@@ -25,6 +25,7 @@ Var Stage
 Var Previous
 Var VersionPath
 Var InstallerMutex
+Var Legacy
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_INSTFILES
@@ -69,8 +70,47 @@ FunctionEnd
 Section "Tabrilo"
     SetRegView 64
     StrCpy $VersionPath "$INSTDIR\versions\${APP_VERSION}"
-    ${If} ${FileExists} "$VersionPath\Tabrilo.exe"
-        Goto registered
+    InitPluginsDir
+    SetOutPath "$PLUGINSDIR"
+    File /oname=PayloadReceipt.exe "${RECEIPT_HELPER}"
+    ; Old packages embedded one deletion list. A single legacy version can use its
+    ; own uninstaller after receipt-backed versions have been removed.
+    StrCpy $3 0
+    StrCpy $4 0
+legacyCheck:
+    EnumRegValue $5 HKCU "${PREFS}\Versions" $3
+    StrCmp $5 "" legacyChecked
+    ReadRegStr $6 HKCU "${PREFS}\Versions" "$5"
+    ${If} $6 == $5
+        IntOp $4 $4 + 1
+        ${If} $4 > 1
+            MessageBox MB_OK|MB_ICONSTOP "Multiple older versions lack payload receipts. Resolve the earlier installation before upgrading." /SD IDOK
+            SetErrorLevel 2
+            Abort
+        ${EndIf}
+    ${EndIf}
+    IntOp $3 $3 + 1
+    Goto legacyCheck
+legacyChecked:
+    ReadRegStr $1 HKCU "${PREFS}\Versions" "${APP_VERSION}"
+    ${If} $1 != ""
+    ${AndIf} $1 != "${RECEIPT_HASH}"
+        MessageBox MB_OK|MB_ICONSTOP "This version has a different payload or component selection. Uninstall it first or use a newer version." /SD IDOK
+        SetErrorLevel 2
+        Abort
+    ${EndIf}
+    ${If} $1 == ""
+    ${AndIf} ${FileExists} "$VersionPath\*.*"
+        ClearErrors
+        ExecWait '"$PLUGINSDIR\PayloadReceipt.exe" check "$VersionPath" ${RECEIPT_HASH}' $0
+        ${If} ${Errors}
+        ${OrIf} $0 != 0
+            MessageBox MB_OK|MB_ICONSTOP "The version folder already exists without a matching, complete payload." /SD IDOK
+            SetErrorLevel 2
+            Abort
+        ${EndIf}
+        ; Resume registration after interruption between publication and registration.
+        StrCpy $1 "${RECEIPT_HASH}"
     ${EndIf}
     ClearErrors
     CreateDirectory "$INSTDIR\versions"
@@ -84,10 +124,36 @@ Section "Tabrilo"
     ${If} ${Errors}
         Goto failed
     ${EndIf}
-    ${IfNot} ${FileExists} "$Stage\Tabrilo.exe"
+    ExecWait '"$PLUGINSDIR\PayloadReceipt.exe" check "$Stage" ${RECEIPT_HASH}' $0
+    ${If} ${Errors}
+    ${OrIf} $0 != 0
         Goto failed
     ${EndIf}
     SetOutPath "$INSTDIR"
+    ${If} $1 == "${RECEIPT_HASH}"
+        ExecWait '"$PLUGINSDIR\PayloadReceipt.exe" repair "$VersionPath" ${RECEIPT_HASH} "$Stage"' $0
+        ${If} ${Errors}
+        ${OrIf} $0 != 0
+            Goto failed
+        ${EndIf}
+        ExecWait '"$PLUGINSDIR\PayloadReceipt.exe" check "$VersionPath" ${RECEIPT_HASH}' $0
+        ${If} ${Errors}
+        ${OrIf} $0 != 0
+            Goto failed
+        ${EndIf}
+        !insertmacro RemovePayload "$Stage"
+        StrCpy $Stage ""
+        ClearErrors
+        WriteUninstaller "$VersionPath\Uninstall.exe"
+        ${If} ${Errors}
+            Goto failed
+        ${EndIf}
+        Goto registered
+    ${EndIf}
+    WriteUninstaller "$Stage\Uninstall.exe"
+    ${If} ${Errors}
+        Goto failed
+    ${EndIf}
     Rename "$Stage" "$VersionPath"
     ${If} ${Errors}
         Goto failed
@@ -96,11 +162,8 @@ Section "Tabrilo"
 registered:
     SetOutPath "$INSTDIR"
     ClearErrors
-    WriteUninstaller "$VersionPath\Uninstall.exe"
-    ${If} ${Errors}
-        Goto failed
-    ${EndIf}
-    WriteRegStr HKCU "${PREFS}\Versions" "${APP_VERSION}" "${APP_VERSION}"
+    StrCpy $Stage ""
+    WriteRegStr HKCU "${PREFS}\Versions" "${APP_VERSION}" "${RECEIPT_HASH}"
     WriteRegStr HKCU "${UNINSTALL}" "DisplayName" "${PRODUCT_ID}"
     WriteRegStr HKCU "${UNINSTALL}" "DisplayVersion" "${APP_VERSION}"
     WriteRegStr HKCU "${UNINSTALL}" "Publisher" "Umut Karabulut and contributors"
@@ -109,7 +172,9 @@ registered:
     WriteRegDWORD HKCU "${UNINSTALL}" "NoModify" 1
     WriteRegDWORD HKCU "${UNINSTALL}" "NoRepair" 1
     CreateShortCut "$SMPROGRAMS\${PRODUCT_ID}.lnk" "$VersionPath\Tabrilo.exe"
-    ClearErrors
+    ${If} ${Errors}
+        Goto failed
+    ${EndIf}
     ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCT_ID}"
     ClearErrors
     ${If} $0 != ""
@@ -124,6 +189,7 @@ registered:
 failed:
     SetOutPath "$INSTDIR"
     ${If} $Stage != ""
+        Delete "$Stage\Uninstall.exe"
         !insertmacro RemovePayload "$Stage"
     ${EndIf}
     SetErrorLevel 1
@@ -140,7 +206,10 @@ FunctionEnd
 Section "Uninstall"
     SetShellVarContext current
     SetRegView 64
-    SetOutPath "$TEMP"
+    InitPluginsDir
+    SetOutPath "$PLUGINSDIR"
+    File /oname=PayloadReceipt.exe "${RECEIPT_HELPER}"
+    StrCpy $Legacy ""
     StrCpy $0 0
 versions:
     EnumRegValue $1 HKCU "${PREFS}\Versions" $0
@@ -174,10 +243,37 @@ known:
         Goto versions
     ${EndIf}
     StrCpy $VersionPath "$INSTDIR\versions\$1"
+    ReadRegStr $2 HKCU "${PREFS}\Versions" "$1"
+    ${If} $2 == $1
+        StrCpy $Legacy "$VersionPath"
+        Goto versions
+    ${EndIf}
+    ClearErrors
+    ClearErrors
+    ExecWait '"$PLUGINSDIR\PayloadReceipt.exe" remove "$VersionPath" "$2"' $3
+    ${If} ${Errors}
+    ${OrIf} $3 != 0
+        SetErrorLevel 1
+        Abort "Could not verify or remove a version. Its registration was retained."
+    ${EndIf}
     Delete "$VersionPath\Uninstall.exe"
-    !insertmacro RemovePayload "$VersionPath"
+    RMDir "$VersionPath"
+    DeleteRegValue HKCU "${PREFS}\Versions" "$1"
+    IntOp $0 $0 - 1
     Goto versions
 done:
+    ${If} $Legacy != ""
+        ClearErrors
+        ClearErrors
+        ExecWait '"$Legacy\Uninstall.exe" /S _?=$Legacy' $3
+        ${If} ${Errors}
+        ${OrIf} $3 != 0
+            SetErrorLevel 1
+            Abort "The earlier installer could not complete removal."
+        ${EndIf}
+        Delete "$Legacy\Uninstall.exe"
+        RMDir "$Legacy"
+    ${EndIf}
     RMDir "$INSTDIR\versions"
     RMDir "$INSTDIR"
     Delete "$SMPROGRAMS\${PRODUCT_ID}.lnk"

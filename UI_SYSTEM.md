@@ -56,6 +56,9 @@ Shared layout: contextual title/selected files, primary preview canvas, operatio
 Use a responsive layout and sensible minimum sizes; controls must remain reachable without fixed-position clipping.
 Provide zoom-to-fit/actual-size where useful, keyboard navigation, and clear original/result comparison.
 Image edit/crop/annotation/frame/redaction share a consistent canvas model and undo/redo patterns.
+Draw, move and resize crop and mask regions on the canvas. Numeric fields provide precision.
+Draw actual annotations in the editing view and use handles and outlines for selection.
+Keep the result view separate from the editing canvas and process current edits for Copy and Save.
 PDF organization uses a page-thumbnail grid with multi-select, order, rotation, duplication, removal, and insertion.
 Long documents use virtualization/bounded thumbnails, not eager full-document rendering.
 Show source/output formats, destination, naming, dimensions, quality, and estimated/actual size where meaningful.
@@ -63,14 +66,16 @@ Do not display fabricated compression percentages or progress. Recalculate resul
 
 ## Radial action wheel
 
-Gesture: drag real files -> hold the configured activation modifier -> wheel appears near pointer -> deliberately select an action.
-Default drag modifier: Shift; make it configurable and avoid interfering with ordinary dragging when inactive.
-Use a bounded 6-8-slot arrangement, clear labels, and intentional secondary navigation for more actions.
-Default wheel diameter is approximately 320 logical units; keep it within the usable monitor area.
-Users can pin/reorder favorites. Context filtering may disable irrelevant commands but must not unpredictably reshuffle favorites.
-No command executes solely because of hover. Make drop/release/click semantics explicit and consistent, with Escape to cancel.
-Provide an in-app keyboard invocation for selected files and discoverable equivalents outside the wheel.
-For quick actions, execute from the wheel with defaults and show compact progress and result feedback.
+Tap Shift, Control or Alt/Option during a file drag to choose Convert, Tools or Actions. Change modes in place.
+Anchor the graphite wheel near invocation within the monitor work area. The shared diameter is 328 logical units.
+The top slice is index zero. Angles increase clockwise. Match the visible sectors exactly when hit testing.
+Convert shows the supported formats directly. Tools reflects the full selection and Actions keeps six fixed positions.
+The center and gaps are neutral. Once acquired, release outside a slice cancels even over a valid folder.
+An outside release leaves the source in place and the receiving folder untouched.
+Returning while still holding the button is valid. Modifier release changes nothing. Escape latches cancellation.
+Keyboard mode exposes labeled actions, mode switching, focus navigation and Enter.
+Keep progress and completion on the invocation monitor, including negative desktop coordinates. Jobs opens on request.
+For Move, offer Cancel for files. For a folder, distinguish Stop queued items from Cancel in the active Windows transfer dialog.
 Open the editor only when the action needs selection, configuration, or preview.
 Wheel navigation supports arrows, Tab, Enter, and Escape. Label all actions for accessibility.
 Test edge positioning, multi-monitor coordinates, mixed DPI, focus restoration, interrupted drags, and repeat invocations.
@@ -107,15 +112,17 @@ No-code-found, unsupported input, and cancelled scan are distinct outcomes.
 Keep long operations off the UI thread. Allow cancellation and show which inputs succeeded or failed.
 Use determinate progress only when measurable; otherwise a labeled busy state with cancellation.
 Export succeeds only after the output exists and validates; show its real location with Open/Reveal actions.
+Keep job outcomes available from Jobs and show compact feedback near the user’s work. Preserve errors and partial results until dismissal.
 Provide concise actionable errors and optional sanitized technical detail, not raw stack traces in primary UI.
 Updates show availability, version, and consent; do not restart mid-operation or hide a failed signature as a network success.
 An unconfigured update channel is labeled as such. A missing feed is not equivalent to an up-to-date application.
-Startup/tray behavior is opt-in and visible; Close and Quit must have clear, predictable meanings.
+Make tray behavior visible. Launch at login is opt-in. Distinguish closing Home from Quit.
 
 ## Accessibility and visual verification
 
 Support keyboard-only operation, screen-reader labels, visible focus, reduced motion, system scale, and high-contrast needs.
+WPF reads Windows text scale and uses system colors in high contrast. Keep wheel focus and selected sectors visible in each mode.
 Do not rely on hover-only actions or color alone. Animate briefly and respect reduced-motion settings.
 Check both light/dark themes, empty/loading/error states, long filenames, narrow windows, and 100/125/150/200% scale.
 Review screenshots from the actual native Windows app; source layouts or mock images are not runtime evidence.
-Later repeat the same scenarios on macOS. Shared design does not remove the need for platform-specific accessibility testing.
+On the MacBook, repeat the same scenarios with VoiceOver, Finder, Control/Option switching and real screen captures. Shared design does not remove the need for platform-specific accessibility testing.

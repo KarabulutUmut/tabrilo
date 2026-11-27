@@ -7,14 +7,14 @@ Identity: Tabrilo. Tagline: **Your files. Ready to share.**
 
 An independent, local desktop toolkit for images, PDFs, and safe archive extraction.
 Native Windows and macOS applications should have equivalent commands, outcomes, layouts, and configurable shortcuts.
-Windows is the first full implementation. macOS requires a subsequent real Mac build and validation run.
+Windows is the acceptance baseline. Complete the native AppKit implementation and Finder validation on the MacBook after merge.
 All declared file operations must work offline after normal installation; no accounts or developer runtimes for end users.
 Only opted-in update checks/downloads and explicitly confirmed external links may use the network.
 
 ## Exclusions
 
-No audio/video tools, collages, RAW development, PSD editing, animated-image editing, arbitrary SVG execution, or Office conversion.
-No web downloader, window tiling, floating file shelf, cloud storage/sync, analytics, advertising, subscriptions, or required AI.
+No audio/video tools, collages, RAW development, PSD editing, animated-image editing, or arbitrary SVG execution.
+No web downloader, window tiling, cloud storage/sync, analytics, advertising, subscriptions, or required AI.
 No archive creation, password cracking, encrypted/multipart archive support, or PDF content redaction in v1.
 No background clipboard surveillance, unsolicited startup persistence, or paid Apple membership requirement.
 Do not add adjacent features merely because a dependency supports them.
@@ -112,21 +112,36 @@ Use bounded background rendering/scanning and cancellation. Never upload files t
 
 Home, Recent results, Settings, and focused contextual editors; no dashboard clutter.
 Accept file picker, normal drag/drop, and explicit clipboard file/image paste. Preserve ordinary text-field paste.
-A native global drag gesture opens a contextual wheel near the pointer; keyboard invocation works for selected app files too.
-Provide 6-8 visible actions, stable user-pinned positions, a deliberate More path, explicit selection, and Escape cancellation.
-Quick wheel actions should execute with sensible defaults and report results in a compact surface.
+Drag real files, then tap Shift for conversion formats, Control for contextual tools, or Alt/Option for six file actions.
+Tap another key to switch in place. Releasing a modifier keeps the wheel open. The wheel stays at its invocation point.
+Release on an enabled slice to commit once. Escape or releasing the primary button elsewhere cancels that drag.
+Moving out while held permits returning. Copy-like drops must never request a destructive native move.
+From the top clockwise, Actions contains Share, Float, Copy, Move, Copy Path and Terminal for files and folders.
+Float holds up to 64 temporary references. Only the explicit Move action changes the source location.
+Move rejects self and descendant destinations. Report each completed, skipped or failed item.
+An interrupted native transfer identifies both locations for inspection before retry.
+Cancel interrupts an active file transfer. For folders, Stop prevents queued transfers and the Windows transfer dialog cancels the active folder.
+Shift offers JPG/PNG and PDF for still images, and PNG/JPG for PDF pages. Omit same-format targets.
+DOCX/PPTX offer PDF and page images with a configured local layout engine. Editable PDF reconstruction remains outstanding.
+PDF and Office page exports preserve document colors regardless of desktop theme or high contrast.
+Several images form one PDF in deterministic path order. Several PDF exports use separate source-adjacent folders.
+Compress, extract, QR and default conversion run directly. Display compact cancellable progress and completion.
 Open a focused editor when an operation needs selection, configuration, or preview.
 Ordinary Explorer/Finder dragging must remain unaffected when the gesture is not activated.
 Mixed selections must show valid common operations or clear unsupported-selection explanations.
 Use configurable semantic shortcuts with Ctrl/Command conventions, conflict detection, and normal editing preservation.
 Include light/dark/system themes, reduced motion, keyboard focus, screen-reader labels, and usable text scaling.
-Tray/menu-bar mode and launch-at-login are explicit preferences; default startup persistence off.
+Keep background mode discoverable with a Quit command. Launch at login requires an explicit preference.
 Recent results keep at most 50 local result references, not copies of all inputs; users can disable/clear them.
 No persistent unredacted thumbnails. Missing files are shown without deleting originals or fabricating results.
 
 ## Output and job behavior
 
 Originals remain unchanged by default. Write, validate, then publish new outputs with collision-safe names.
+Image-to-PDF preserves normalization and uses lossless final stream compression.
+Default separate exports to each source directory. Let a configured export directory override this.
+Clipboard exports require an explicit export folder. Combined exports from different folders require one chosen destination.
+Offer an intentional destination override and ask for a fallback when the original destination cannot be used.
 Use cancellable bounded jobs, real progress where measurable, and indeterminate progress otherwise.
 Show failures and partial batch outcomes accurately; never claim batch-wide success when items failed.
 Let users preview, save, copy processed images, reveal outputs, and retry appropriate failures.
@@ -139,6 +154,7 @@ All advertised operations must produce real independently readable files; no pla
 Input hashes, export validity, redaction properties, archive containment, QR behavior, and PDF preservation require evidence.
 The wheel must work with real Explorer/Finder drags on the claimed platform, not solely inside the app window.
 Installer/uninstaller behavior, offline processing, missing-dependency handling, and signed updates require end-to-end tests.
-An update must preserve settings/history preferences, reject tampering, and handle interruption safely.
+Automatic updates must preserve edition, settings, history and exports. Core stays core and Office stays Office.
+A deliberate edition change uses a newer installer. Rejected, interrupted and incompatible updates retain the prior installation.
 Publish only the OS/architecture/format combinations actually validated. Mac source or CI compilation alone is not Mac desktop validation.
 Do not reduce scope silently. Any incomplete requirement remains an explicit blocker in STATUS.md and the final report.

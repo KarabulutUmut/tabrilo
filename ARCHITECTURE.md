@@ -102,6 +102,8 @@ Normalize color deliberately; metadata privacy must not silently corrupt normal 
 PDF rendering disables scripts/actions/network resources. Rewriting properties must remove old metadata revisions.
 For PDF preservation limits, reject or clearly request consent rather than silently flattening or losing content.
 Archive writers enforce containment at filesystem access time, reject links/special paths, and measure streamed output bytes.
+Windows creates each extraction entry relative to its owned directory handle and renames the held root.
+Rollback removes entries by handle. After sealing, it checks parent identities, file IDs and namespace changes first.
 Treat QR results as text until an explicit allowed-link action is confirmed.
 Never log passwords, raw document contents, QR secrets, images, or private signing material.
 Diagnostics should use redacted/relative paths where possible, bounded rotation, and no automatic upload.
@@ -121,8 +123,11 @@ The wheel requires real global file-drag activation plus normal in-app drag/drop
 Windows: use native/OLE drag payloads and a suitable overlay; do not infer dragged files by stealing the clipboard.
 Do not inject DLLs into Explorer, install privileged drivers, or require administrator rights for normal interaction.
 Hook only the input needed for the explicit gesture; release resources on exit, failure, or permission denial.
-The Windows overlay monitors modifier/button state and Explorer foreground movement. Its OLE drop
-target acquires actual file paths and requires an explicit drop on an enabled action.
+Windows observes button edges from Explorer and scopes key observation to the held gesture.
+Acquiring shell file data adds nonactivating OLE rejection windows behind the wheel across physical monitors.
+A provisional OLE target obtains real CF_HDROP before revealing the wheel. Its physical release and
+OLE Drop must agree on a sector. Cancelled sessions reject late notifications. AppKit uses dragging
+sequence numbers and native pasteboard file URLs. Both consume the versioned shared wheel contract.
 Test screen bounds, negative coordinates, mixed DPI, monitors, interrupted drags, focus, and normal drag behavior.
 macOS: request only permissions actually needed and explain their purpose; denial keeps basic in-app functionality usable.
 Graceful fallback does not count as verification of an unavailable global wheel feature.
@@ -136,22 +141,26 @@ If Codex runs in WSL, invoke native Windows tools for WPF and record any inabili
 Avoid trimming/AOT for WPF or native wrappers unless explicitly validated. Use a self-contained x64 release payload.
 Keep the app functional without the developer SDK or ad hoc dependencies inherited from the developer's PATH.
 The Windows installer is per-user with no routine elevation, supports upgrades/uninstall, and keeps data outside installation.
+Each version registers its own SHA-256 receipt for its component selection, directory names and file digests.
+Setup checks staged content before publication and can repair missing entries from an identical package.
+Uninstall retains modified and unrelated files. Multiple receiptless legacy versions require manual reconciliation.
 Test interrupted/failed upgrades and recovery; do not invent a separate custom update cryptosystem or advertise untested rollback.
 
 ## Update trust and release pipeline
 
-Windows uses NetSparkle strict verification for feed and payload; macOS uses supported Sparkle feed/archive signature settings.
-Windows bounds transport and parses the signed appcast locally using NetSparkle's strict Ed25519 verifier.
-Use platform-specific signing keys and a pinned public trust anchor. Production private keys never enter source, logs, or packages.
-Development tests use ephemeral keys and isolated feeds. A test key must never become the production identity.
-Without production credentials, show a clear update-configuration state and fail the production publication gate.
-Do not disable verification or treat a SHA-256 checksum as publisher authenticity.
-Use HTTPS, constrained download origins/redirects, bounded downloads, version/OS/architecture checks, and anti-downgrade rules.
-Create separate feeds for Windows x64 and Mac architectures/channels, e.g. a GitHub Pages update directory.
-Do not use the repository-wide releases/latest asset as the sole feed: a release for one OS must not break another OS.
-Feed URLs remain unconfigured until hosting exists; do not present a missing feed as proof there are no updates.
-Automatic checks need a visible preference/disclosure. Installation requires a safe idle point and clear user consent.
-Update settings/history survive replacement. Validate successful replacement, restart, refusal, interruption, and failure recovery.
+NetSparkle Strict verifies the detached appcast. Bouncy Castle verifies its standard Ed25519 installer signature over a read-only file mapping to bound private memory.
+The signed enclosure binds Windows x64, channel, edition, minimum OS, version, length and SHA-256.
+Setup must also match the expected product, embedded edition and version under a read lock.
+The embedded capability contract bounds a download to 1 GiB, connection to 30 seconds, stalled reads to
+90 seconds and the transfer to two hours. Stream to a unique file and reserve 64 MiB beyond the advertised length.
+The opt-in startup and manual paths require download/install consent. Restart after successful idle installation.
+Core and Office have separate compatible targets. Isolated builds alone can read a local signed fixture feed.
+Production preparation checks an approved clean commit, stable identity, material gates, trust anchor and publisher signing.
+Local inspection emits a SHA-256 receipt report, exact identity, package sizes and release-note input.
+
+Sparkle 2 on macOS needs its own feed, key, installed replacement and relaunch tests for each supported edition.
+The MacBook work starts from the accepted merge and reuses the shared commands, geometry, output policy,
+synthetic Office/PDF fixtures and design tokens. AppKit source and hosted checks remain the native foundation.
 
 PRs and pushes to main run Windows build/test and the manual-build C# CodeQL analysis.
 Main can also build and self-check an unsigned payload in the runner workspace.
@@ -172,13 +181,46 @@ Document truthful first-launch limitations after testing on a Mac; managed devic
 Apple/Windows publisher signing and cryptographic updater authenticity are separate concerns.
 No guarantee of frictionless ad-hoc-signed updates before a real old-to-new installed Mac test.
 
+## Windows invocation and jobs
+
+The command coordinator snapshots semantic ID, input paths and clipboard origin,
+invocation origin, options, destination policy, and cancellation on dispatch.
+Home, the keyboard wheel, and Explorer use the same coordinator. Only explicit
+choices, editor interactions, and OS clipboard work use the WPF dispatcher.
+The quick operation implementations and image processing run on background tasks.
+
+Compact nonactivating feedback exposes cancellation and completion. A bounded Jobs window
+opens on request. History persists published paths only. An explicit Move uses native file operations.
+Input editors own cancellable, debounced result previews. A newer request
+cancels older work, and Save and Copy consume current validated output.
+
+Separate exports default to their source directories. Combined output across
+different source folders and first-use clipboard exports require an explicit
+destination. A configured destination is checked before the job writes.
+Destination checks do not replace validation or atomic publication in processing.
+
+## Page assembly and Office layout
+
+Page assembly holds read leases and caches qpdf inspection per source for grouped Split.
+qpdf copies page content and annotations to a new document. A second structural pass maps local
+destinations onto retained page objects, disables removed targets, and rebuilds flat page bookmarks.
+The page editor discloses omitted document-level structures. Rewrites refuse signed and protected input.
+Forms, active actions, embedded files and unsupported layers have separate page-assembly guards.
+Windows.Data.Pdf renders through IPdfRendererNative to an application-owned Direct3D surface using Vortice bindings.
+The background worker checks cancellation between bounded tiles and releases its device before returning, including on WARP.
+
+Windows renders static DOCX/PPTX through a local LibreOffice profile with disabled macros and
+active content. The bounded worker rejects linked external resources, validates qpdf output and
+opens it with Windows.Data.Pdf. The optional MSI administrative image includes upstream notices.
+Editable PDF-to-DOCX/PPTX needs a reconstruction engine and layout acceptance.
+
 ## Validation and operations
 
 Local scripts cover environment checks, builds, tests, packaging, documentation
 budgets, shared manifests and workflow validation. Real failures return nonzero.
 Keep unit/integration, adversarial, native-UI, and installed-update evidence distinguishable.
 Use synthetic fixtures and independent inspectors. Track unavailable tests as skipped/blocked, never passed.
-CI should compile/test Windows. Add Mac compilation/tests only when actual Mac targets exist; never use echo-success placeholders.
+Routine CI compiles WPF and AppKit and exercises their fixtures. A Windows dispatch installs both editions and rebuilds the native HEIC delegate.
 Do not let green shared-contract checks imply that unimplemented Mac features work.
 Build artifacts, screenshots, and logs are ignored locally or bounded CI artifacts; STATUS.md links the current evidence.
 Report the actual launch/package paths, last passing commands, remaining blockers, and exact next run.

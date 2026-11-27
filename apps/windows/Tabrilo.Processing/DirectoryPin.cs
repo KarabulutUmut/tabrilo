@@ -8,6 +8,7 @@ namespace Tabrilo.Processing;
 internal sealed class DirectoryPin : IDisposable
 {
     private readonly List<SafeFileHandle> handles = [];
+    internal SafeFileHandle Leaf => handles[^1];
 
     public DirectoryPin(string path)
     {

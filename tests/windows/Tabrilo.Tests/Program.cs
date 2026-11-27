@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -24,11 +25,29 @@ while (current is not null && !File.Exists(Path.Combine(current.FullName, "Tabri
 var repository = current?.FullName ?? throw new InvalidOperationException("Run from the Tabrilo repository.");
 var evidence = Path.Combine(repository, "artifacts", "tests", DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Environment.ProcessId);
 Directory.CreateDirectory(evidence);
+if (args is ["--folder-transfer", var volumeRoot])
+{
+    await FolderTransfer.CancelAsync(evidence, volumeRoot);
+    return 0;
+}
 var qpdf = Path.Combine(repository, ".tools", "qpdf", "qpdf-12.4.2-msvc64", "bin", "qpdf.exe");
+if (args is ["--relinked-heic", var heicPath, var rebuiltDigest])
+{
+    var result = await Images.ProcessAsync(heicPath, new(ImageFormat.Png), default);
+    if (result.Width != 451 || result.Height != 461) throw new IOException("Replacement HEIC decoder returned the wrong dimensions.");
+    var output = await Images.SaveAsync(result, evidence, "decoded", default);
+    if (Decode(output).PixelWidth != 451) throw new IOException("Independent PNG decode failed.");
+    var loaded = Process.GetCurrentProcess().Modules.Cast<ProcessModule>().Single(module =>
+        string.Equals(module.ModuleName, "Magick.Native-Q8-x64.dll", StringComparison.OrdinalIgnoreCase));
+    if (Hash(loaded.FileName) != rebuiltDigest) throw new IOException("The test process loaded a different native DLL.");
+    return 0;
+}
 Console.WriteLine($"Evidence directory {evidence}");
 var checks = new (string Name, Func<Task> Run)[]
 {
     ("Semantic catalog and local preferences", Contracts),
+    ("Operation routing and output policy", OperationPolicy),
+    ("Wheel sectors and editor coordinate transforms", DesktopGeometry),
     ("Atomic output, original hashes and cancellation", Atomic),
     ("Native PNG validation, masks, crop and rotation", Redaction),
     ("Annotation, framing, adjustments and WebP", Edits),
@@ -36,7 +55,12 @@ var checks = new (string Name, Func<Task> Run)[]
     ("Multiple local QR results", ReadQr),
     ("ZIP, TAR, GZIP and TGZ publication", ArchiveFormats),
     ("Archive path, size and disk limits", ArchiveGuards),
+    ("Extraction stage identity through rollback", StageOwnership),
+    ("Move validation and per-item cancellation", MoveOutcomes),
+    ("Windows PowerShell terminal directory and module search", TerminalLaunch),
+    ("Image PDF encoding and indirect PDF navigation", PdfRepresentations),
     ("PDF properties, structural edits and WinRT render", PdfRewrite),
+    ("Wheel modes and PDF navigation", ThreeWheel),
     ("PDF conservative and lossy compression", PdfCompress),
     ("Ed25519 update checks and interruption", UpdateTrust)
 };
@@ -47,6 +71,35 @@ foreach (var (name, run) in checks)
     catch (Exception error) { failures++; Console.WriteLine($"FAIL {name}\n{error}"); }
 }
 var total = checks.Length;
+if (Environment.GetEnvironmentVariable("TABRILO_TEST_SECOND_VOLUME") is { Length: > 0 } volume)
+{
+    total++;
+    try { CrossVolumeMove(volume); Console.WriteLine("PASS distinct-volume Move and retry"); }
+    catch (Exception error) { failures++; Console.WriteLine($"FAIL distinct-volume Move\n{error}"); }
+}
+else Console.WriteLine("Coverage skipped: distinct-volume Move (TABRILO_TEST_SECOND_VOLUME).");
+if (Environment.GetEnvironmentVariable("TABRILO_TEST_OFFICE") is { Length: > 0 } engine)
+{
+    total++;
+    try { await OfficeLayouts(engine); Console.WriteLine("PASS DOCX and PPTX multi-page layouts"); }
+    catch (Exception error) { failures++; Console.WriteLine($"FAIL Office layouts\n{error}"); }
+}
+else Console.WriteLine("Coverage skipped: real Office engine (TABRILO_TEST_OFFICE).");
+if (Environment.GetEnvironmentVariable("TABRILO_TEST_SPLIT_PDF") is { Length: > 0 } sample)
+{
+    total++;
+    try
+    {
+        var pdf = new Pdfs(qpdf);
+        var before = Hash(sample);
+        var info = await pdf.InspectAsync(sample, null, default);
+        var parts = await pdf.SplitAsync(sample, Enumerable.Range(1, info.Pages).Select(p => new[] { p }).ToArray(),
+            Folder("owner-split"), true, default);
+        Require(info.Pages == Directory.GetFiles(parts, "*.pdf").Length && before == Hash(sample), "owner PDF split and input hash");
+        Console.WriteLine($"PASS Owner PDF split: {info.Pages} single-page PDFs, unchanged SHA-256 {before}");
+    }
+    catch (Exception error) { failures++; Console.WriteLine($"FAIL Owner PDF split\n{error}"); }
+}
 if (args is ["--installed", var oldInstaller, var newInstaller])
 {
     total++;
@@ -70,6 +123,53 @@ Task Contracts()
     Require(state.Read() is { Appearance: "Dark", KeepHistory: false }, "preference round trip");
     File.WriteAllText(Path.Combine(folder, "preferences.json"), "{ invalid");
     Require(state.Read().Appearance == "System" && File.Exists(Path.Combine(folder, "preferences.json.recovery")), "recovery");
+    return Task.CompletedTask;
+}
+
+async Task OperationPolicy()
+{
+    var folder = Folder("operation-policy");
+    var sub = Directory.CreateDirectory(Path.Combine(folder, "exports")).FullName;
+    var first = new OperationInput(Path.Combine(folder, "first.png"));
+    var second = new OperationInput(Path.Combine(sub, "second.png"));
+    var clipboard = new OperationInput(Path.Combine(folder, "pasted.png"), Clipboard: true);
+    var defaults = new OutputPolicy(null, null);
+    Require(defaults.For(first) == folder && defaults.For(second) == sub, "per-source default");
+    Require(defaults.For(clipboard) is null, "clipboard scratch path excluded");
+    Require(defaults.ForCombined([first, second]) is null && defaults.ForCombined([first]) == folder,
+        "explicit destination for mixed folders");
+    Require(new OutputPolicy(sub, null).ForCombined([first, second, clipboard]) == sub &&
+        new OutputPolicy(folder, sub).For(clipboard) == sub, "valid fixed export preference");
+    Require(await OperationDestination.Writable(sub, default) &&
+        !await OperationDestination.Writable(Path.Combine(sub, "unavailable"), default) &&
+        !Directory.EnumerateFileSystemEntries(sub).Any(), "private write probe is cleaned up");
+    using var cancellation = new CancellationTokenSource();
+    cancellation.Cancel();
+    await Expect<OperationCanceledException>(() => OperationDestination.Writable(sub, cancellation.Token));
+    Require(new[] { "image.compress", "image.metadata", "pdf.compress", "archive.extract", "qr.read" }.All(id =>
+        QuickOperations.Handles(id) && OperationRouting.For(id) == Presentation.Quick), "direct paths");
+    Require(new[] { "convert.png", "convert.jpg", "convert.pdf", "convert.webp" }.All(id =>
+        QuickOperations.Handles(id) && OperationRouting.For(id) == Presentation.Quick), "direct format commands");
+    Require(OperationRouting.For("image.redact") == Presentation.Editor && !QuickOperations.Handles("image.redact") &&
+        OperationRouting.For("pdf.compress", advanced: true) == Presentation.Choices, "editor and explicit advanced routing");
+}
+
+Task DesktopGeometry()
+{
+    var center = Wheel.Diameter / 2;
+    var target = new System.Windows.Point(center + 35, center - 122);
+    Require(Wheel.Sector(0).FillContains(target) && !Wheel.Sector(1).FillContains(target),
+        "sector includes drop space outside the visible label");
+    Require(Enumerable.Range(0, 7).All(index => !Wheel.Sector(index).FillContains(new System.Windows.Point(center, center))),
+        "center is neutral");
+    var view = new ImageViewport(new System.Windows.Rect(20, 95, 400, 200), 800, 400);
+    Require(view.At(new System.Windows.Point(220, 195)) == new ImagePoint(400, 200) &&
+        view.At(new System.Windows.Point(1000, -100)) == new ImagePoint(799, 0), "letterboxed fit and clamping");
+    Require(view.Bounds(new(100, 20, 80, 60)) == new System.Windows.Rect(70, 105, 40, 30), "pixel edge mapping");
+    Require(view.Move(new(700, 340, 80, 60), new(740, 350), new(790, 397)) == new PixelRect(720, 340, 80, 60),
+        "move is clamped to image");
+    Require(view.Resize(new(10, 10, 50, 50), new(10, 10), new(0, 0), -1, -1, 1) == new PixelRect(0, 0, 60, 60),
+        "aspect resize holds the opposite corner");
     return Task.CompletedTask;
 }
 
@@ -100,6 +200,8 @@ async Task Redaction()
     var source = Path.Combine(folder, "source.png");
     WriteBitmap(source, 8, 6, (x, y) => ((byte)(20 * x), (byte)(35 * y), (byte)240, (byte)(x == 0 ? 0 : 120)), metadata: true);
     var hash = Hash(source);
+    var preview = await Images.ReadEditorPreviewAsync(source, default);
+    Require(preview.Width == 8 && preview.Height == 6, "oriented editor dimensions");
     var result = await Images.ProcessAsync(source, new(ImageFormat.Png, Redaction: true,
         Edits: new(Redactions: [new(1, 2, 2, 3)])), default);
     var output = await Images.SaveAsync(result, folder, "redacted", default);
@@ -196,7 +298,7 @@ async Task ReadQr()
     Require(new QrResult("file:///c:/x.exe", "Text", null, []).AllowedLink is null, "file URL stays text");
     var pdf = new Pdfs(qpdf);
     var document = await pdf.FromImagesAsync([source, source], folder, new(), default);
-    var render = await pdf.OpenForRenderingAsync(document, null, default);
+    using var render = await pdf.OpenForRenderingAsync(document, null, default);
     var page = await Pdfs.RenderPageAsync(render, 2, 144, ImageFormat.Png, default);
     Require(Qr.ScanRenderedPage(page, 2, default).Count(item => item.Page == 2) == 2, "PDF QR page and multiple results");
     Require(Hash(source) == hash, "unchanged QR source");
@@ -272,6 +374,223 @@ async Task ArchiveGuards()
     Require(!Directory.EnumerateDirectories(folder).Any(), "archive failure does not publish or leave staging");
 }
 
+async Task StageOwnership()
+{
+    var folder = Folder("stage-ownership");
+    var marker = Path.Combine(folder, "existing");
+    await File.WriteAllTextAsync(marker, "keep");
+    using var pin = new DirectoryPin(folder);
+    var stage = new ExtractionStage(folder, pin.Leaf);
+    var root = Directory.GetDirectories(folder).Single();
+    stage.AddDirectory("nested", "", "nested");
+    using (var file = stage.AddFile("nested", "owned")) file.WriteByte(1);
+    await Expect<IOException>(() => Task.Run(() => Directory.Move(root, root + "-other")));
+    Require(!await stage.TryPublishAsync("existing", default), "native no-replace collision");
+    // A different object at the old name must survive rollback.
+    var entry = Path.Combine(root, "nested", "owned");
+    File.Move(entry, Path.Combine(folder, "retained"));
+    File.WriteAllText(entry, "unrelated");
+    await Expect<IOException>(() => Task.Run(stage.Dispose));
+    Require(File.ReadAllText(entry) == "unrelated" && File.ReadAllText(marker) == "keep", "unrelated identities preserved");
+    using (var cancelled = new ExtractionStage(folder, pin.Leaf))
+    {
+        using (cancelled.AddFile("", "partial")) { }
+        Require(!await cancelled.TryPublishAsync("existing", default), "publication refused");
+    }
+    Require(Directory.GetDirectories(folder).SequenceEqual([root]), "fully owned stage rolled back after publication failure");
+    using var retry = new ExtractionStage(folder, pin.Leaf);
+    using (retry.AddFile("", "result")) { }
+    Require(!await retry.TryPublishAsync("existing", default), "retry fixture sealed");
+    var staging = Directory.GetDirectories(folder).Single(path => path != root);
+    var reader = File.OpenRead(Path.Combine(staging, "result"));
+    Task<bool> retrying;
+    using (reader)
+    {
+        using var stop = new CancellationTokenSource();
+        var pending = retry.TryPublishAsync("ready", stop.Token);
+        Require(!pending.IsCompleted, "open reader delays publication");
+        stop.Cancel();
+        await Expect<OperationCanceledException>(() => pending);
+        retrying = retry.TryPublishAsync("ready", default);
+        Require(!retrying.IsCompleted, "retry waits for the reader");
+    }
+    Require(await retrying && File.Exists(Path.Combine(folder, "ready", "result")),
+        "same stage can publish after the reader closes");
+}
+
+Task MoveOutcomes()
+{
+    var folder = Folder("move");
+    var source = Directory.CreateDirectory(Path.Combine(folder, "Grüße & spaces")).FullName;
+    var child = Directory.CreateDirectory(Path.Combine(source, "child")).FullName;
+    var file = Path.Combine(source, "item.txt");
+    File.WriteAllText(file, "original");
+    var hash = Hash(file);
+    var target = Directory.CreateDirectory(Path.Combine(folder, "Grüße & spaces sibling")).FullName;
+    foreach (var invalid in new[] { source, child })
+        Require(FileActions.Move([source], invalid, default).Single().Message!.Contains("outside") && Hash(file) == hash, "cycle rejection");
+    var collision = Path.Combine(target, "item.txt");
+    File.WriteAllText(collision, "conflict");
+    Require(FileActions.Move([file], target, default).Single().Output == null && File.ReadAllText(collision) == "conflict" &&
+        Hash(file) == hash, "existing item preserved");
+    Require(FileActions.Move([file + ".missing"], target, default).Single().Output == null, "missing source reported");
+    File.Delete(collision);
+
+    using var stop = new CancellationTokenSource();
+    var results = FileActions.Move([file, child], target, stop.Token, _ => stop.Cancel());
+    Require(results[0].Output == collision && Hash(collision) == hash && results[1].Cancelled && Directory.Exists(child), "partial batch with one committed move");
+    Require(FileActions.Move([source], target, default).Single().Output is { } moved &&
+        Directory.Exists(Path.Combine(moved, "child")), "folder move after error");
+    return Task.CompletedTask;
+}
+
+void CrossVolumeMove(string secondRoot)
+{
+    var source = Folder("cross-volume");
+    var first = Path.GetPathRoot(FileActions.FinalDirectory(source));
+    var second = Path.GetPathRoot(FileActions.FinalDirectory(secondRoot));
+    Require(first != null && second != null && first.StartsWith(@"\\?\Volume{") && second.StartsWith(@"\\?\Volume{") &&
+        !string.Equals(first, second, StringComparison.OrdinalIgnoreCase), "two distinct volume GUIDs required");
+    var destination = Directory.CreateDirectory(Path.Combine(secondRoot, $"Tabrilo-{Guid.NewGuid():N}")).FullName;
+    var data = "Cross-volume fixture"u8.ToArray();
+    var file = Path.Combine(source, "file.txt");
+    var tree = Directory.CreateDirectory(Path.Combine(source, "tree")).FullName;
+    var leaf = Path.Combine(tree, "leaf.txt");
+    File.WriteAllBytes(file, data);
+    File.WriteAllBytes(leaf, data);
+    var collision = Path.Combine(destination, "file.txt");
+    File.WriteAllText(collision, "existing");
+    Require(FileActions.Move([file], destination, default)[0].Output == null && File.ReadAllText(collision) == "existing" &&
+        File.ReadAllBytes(file).SequenceEqual(data), "collision preserved both files");
+    File.Delete(collision);
+    var active = Path.Combine(source, "active.bin");
+    using (var input = File.Create(active)) input.SetLength(64L << 20);
+    var expected = Hash(active);
+    using var interrupt = new CancellationTokenSource();
+    var cancelled = FileActions.Move([active], destination, interrupt.Token, transferred: bytes =>
+    {
+        if (bytes > 0 && bytes < (64L << 20)) interrupt.Cancel();
+    })[0];
+    var activeTarget = Path.Combine(destination, "active.bin");
+    Require(interrupt.IsCancellationRequested && cancelled.Cancelled && Hash(active) == expected &&
+        !File.Exists(activeTarget), "active native transfer cancelled with intact source and no destination");
+    Require(FileActions.Move([active], destination, default)[0].Output == activeTarget &&
+        Hash(activeTarget) == expected && !File.Exists(active), "safe retry after in-flight cancellation");
+    File.Delete(activeTarget);
+    Require(FileActions.Move([tree], destination, new CancellationToken(true))[0].Cancelled && File.Exists(leaf),
+        "pre-transfer cancellation preserved tree");
+    using var stop = new CancellationTokenSource();
+    var outcomes = FileActions.Move([file, tree], destination, stop.Token, _ => stop.Cancel());
+    Require(outcomes[0].Output == collision && outcomes[1].Cancelled && File.ReadAllBytes(collision).SequenceEqual(data) &&
+        !File.Exists(file) && File.Exists(leaf), "partial transfer preserved queued source");
+    var moved = FileActions.Move([tree], destination, default)[0].Output;
+    Require(moved != null && File.ReadAllBytes(Path.Combine(moved, "leaf.txt")).SequenceEqual(data) && !Directory.Exists(tree),
+        "retry moved complete tree");
+    Console.WriteLine($"Verified Move between {first} and {second}");
+    File.Delete(collision);
+    File.Delete(Path.Combine(moved!, "leaf.txt"));
+    Directory.Delete(moved!);
+    Directory.Delete(destination);
+}
+
+async Task TerminalLaunch()
+{
+    var dir = Folder("Terminal Grüße & spaces");
+    var previous = Environment.GetEnvironmentVariable("PSModulePath");
+    var injected = Path.Combine(dir, "launcher-only");
+    ProcessStartInfo start;
+    try
+    {
+        Environment.SetEnvironmentVariable("PSModulePath", injected);
+        start = FileActions.TerminalStart(dir);
+    }
+    finally { Environment.SetEnvironmentVariable("PSModulePath", previous); }
+    start.CreateNoWindow = true;
+    start.RedirectStandardOutput = true;
+    start.ArgumentList.Add("-NonInteractive");
+    start.ArgumentList.Add("-Command");
+    start.ArgumentList.Add("[Console]::OutputEncoding = [Text.Encoding]::UTF8; (Get-Location).Path; $env:PSModulePath");
+    start.StandardOutputEncoding = Encoding.UTF8;
+    using var process = Process.Start(start)!;
+    var output = await process.StandardOutput.ReadToEndAsync();
+    await process.WaitForExitAsync();
+    Require(process.ExitCode == 0 && output.Split('\n')[0].Trim() == dir && !output.Contains(injected),
+        "native shell starts in selected folder without the launcher module directory");
+}
+
+async Task PdfRepresentations()
+{
+    var folder = Folder("pdf-representations");
+    var pdf = new Pdfs(qpdf);
+    var fixture = Path.Combine(repository, "tests/fixtures/navigation.pdf");
+    var original = Hash(fixture);
+    var template = Path.Combine(folder, "template.json");
+    await ProcessExit(qpdf, [fixture, "--json-output", template]);
+    foreach (var indirect in new[] { false, true })
+    {
+        var json = JsonNode.Parse(File.ReadAllText(template))!;
+        var objects = json["qpdf"]![1]!.AsObject();
+        var catalog = objects["obj:" + objects["trailer"]!["value"]!["/Root"]]!["value"]!;
+        var destination = new JsonArray("6 0 R", "/Fit");
+        var action = objects["obj:3 0 R"]!["value"]!["/A"]!;
+        if (indirect)
+        {
+            objects["obj:101 0 R"] = new JsonObject { ["value"] = destination };
+            objects["obj:102 0 R"] = new JsonObject { ["value"] = action["/URI"]!.DeepClone() };
+            catalog["/OpenAction"] = "101 0 R";
+            action["/URI"] = "102 0 R";
+        }
+        else catalog["/OpenAction"] = destination;
+        var spec = Path.Combine(folder, indirect + ".json");
+        var path = Path.Combine(folder, indirect + ".pdf");
+        File.WriteAllText(spec, json.ToJsonString());
+        await ProcessExit(qpdf, ["--json-input", spec, path]);
+        Require(!(await pdf.InspectAsync(path, null, default)).Interactive, "benign destinations and URI");
+        await Expect<NotSupportedException>(() => pdf.SplitAsync(path, [[1]], folder, false, default));
+        var split = await pdf.SplitAsync(path, [[1]], folder, true, default);
+        using var decoded = PdfSharp.Pdf.IO.PdfReader.Open(split);
+        Require(decoded.PageCount == 1 && decoded.Pages[0].Annotations.Count == 3, "passive annotations survive split");
+        if (indirect)
+        {
+            objects["obj:102 0 R"]!["value"] = "u:file:///unavailable";
+            File.WriteAllText(spec, json.ToJsonString());
+            var unsafePath = Path.Combine(folder, "unsupported-uri.pdf");
+            await ProcessExit(qpdf, ["--json-input", spec, unsafePath]);
+            Require((await pdf.InspectAsync(unsafePath, null, default)).Interactive, "unsupported indirect URI rejected");
+        }
+    }
+    Require(Hash(fixture) == original, "original navigation fixture preserved");
+    var flat = Path.Combine(folder, "flat.png");
+    WriteBitmap(flat, 720, 480, (x, y) => x < 240 || y < 150 ? ((byte)28, (byte)92, (byte)68, (byte)255) : ((byte)250, (byte)205, (byte)149, (byte)255));
+    var inputs = new List<string> { flat };
+    if (Environment.GetEnvironmentVariable("TABRILO_TEST_PHOTO") is { Length: > 0 } photo) inputs.Add(photo);
+    else Console.WriteLine("Coverage skipped: photographic JPEG (TABRILO_TEST_PHOTO).");
+    foreach (var input in inputs)
+    {
+        var before = Hash(input);
+        var clock = Stopwatch.StartNew();
+        var output = await pdf.FromImagesAsync([input], folder, new(720, 480, 0), default);
+        var elapsed = clock.ElapsedMilliseconds;
+        var plain = output + ".plain.pdf";
+        await ProcessExit(qpdf, [output, "--stream-data=uncompress", "--object-streams=disable", plain]);
+        using var a = await pdf.OpenForRenderingAsync(output, null, default);
+        using var b = await pdf.OpenForRenderingAsync(plain, null, default);
+        var render = await Pdfs.RenderPageAsync(a, 1, 72, ImageFormat.Png, default);
+        var reference = await Pdfs.RenderPageAsync(b, 1, 72, ImageFormat.Png, default);
+        Require(a.PageCount == 1 && render.Width == 720 && render.Height == 480 &&
+            render.Bytes.SequenceEqual(reference.Bytes) && Hash(input) == before, "same rendered pixels and geometry");
+        if (input == flat)
+        {
+            var bitmap = Decode(await Images.SaveAsync(render, folder, "decoded-flat", default));
+            Require(Pixel(bitmap, 100, 100)[0] < 40 && Pixel(bitmap, 600, 350)[0] > 240, "corner orientation and color");
+        }
+        var bytes = new FileInfo(output).Length;
+        var expanded = new FileInfo(plain).Length;
+        Require(bytes < expanded, "smaller representative image PDF");
+        Console.WriteLine($"Image PDF {Path.GetFileName(input)}: {bytes} vs {expanded} bytes, {elapsed} ms, suite peak {Process.GetCurrentProcess().PeakWorkingSet64} bytes.");
+    }
+}
+
 async Task PdfRewrite()
 {
     var folder = Folder("pdf");
@@ -300,10 +619,98 @@ async Task PdfRewrite()
     Require(inspection.PageCount == 3 && inspection.Pages[0].Rotate == 90 &&
         inspection.Pages[1].Width.Point == 500, "independent page order, geometry and rotation");
     inspection.Dispose();
-    var rendered = await pdf.OpenForRenderingAsync(ordered, null, default);
+    using var rendered = await pdf.OpenForRenderingAsync(ordered, null, default);
     var image = await Pdfs.RenderPageAsync(rendered, 1, 96, ImageFormat.Jpeg, default);
     var path = await Images.SaveAsync(image, folder, "page", default);
     Require(Decode(path).PixelWidth > 100 && Hash(source) == original, "independent rendered JPEG and original hash");
+}
+
+async Task ThreeWheel()
+{
+    foreach (var neutral in new string?[] { null, "different" })
+    {
+        var session = new DropRelease();
+        session.Release(neutral);
+        Require(!session.TryCommit("JPG") && !session.TryCommit("JPG"), "invalid physical release latches cancellation");
+    }
+    var valid = new DropRelease(); valid.Release("JPG");
+    Require(valid.TryCommit("JPG") && !valid.TryCommit("JPG"), "one matching native drop");
+    var cancelled = new DropRelease(); cancelled.Cancel(); cancelled.Release("JPG");
+    Require(!cancelled.TryCommit("JPG") && !new DropRelease().TryCommit("JPG"), "escape and early drop do nothing");
+    var wheel = WheelCatalog.Shared;
+    var folder = Folder("wheel-and-pdf");
+    foreach (var sample in new[] { folder, "a.pdf", "a.png", "a.docx", "a.pptx", "a.zip", "a.xyz" })
+        Require(wheel.For(WheelMode.Actions, [sample], false, false).Select(c => c.Id).SequenceEqual(
+            new[] { "action.share", "action.float", "action.copy", "action.move", "action.path", "action.terminal" }), "fixed action order");
+    Require(wheel.For(WheelMode.Convert, ["a.png"], false, false).Select(c => c.Label).SequenceEqual(new[] { "JPG", "PDF" }), "direct PNG targets");
+    Require(wheel.For(WheelMode.Convert, ["a.docx"], false, false).Length == 0, "missing engine hidden");
+    Require(wheel.For(WheelMode.Tools, ["a.pdf", "a.png"], false, false).Single().Id == "qr.read", "mixed intersection");
+    var source = Path.Combine(repository, "tests/fixtures/navigation.pdf");
+    var hash = Hash(source);
+    var pdf = new Pdfs(qpdf);
+    var result = await pdf.SplitAsync(source, [[3, 2], [1]], folder, false, default);
+    using var keep = PdfSharp.Pdf.IO.PdfReader.Open(Path.Combine(result, "Part 0001.pdf"));
+    using var omit = PdfSharp.Pdf.IO.PdfReader.Open(Path.Combine(result, "Part 0002.pdf"));
+    Require(keep.PageCount == 2 && keep.Outlines.Count == 2 && omit.Outlines.Count == 1, "retained bookmarks only");
+    Require(keep.Pages[0].Annotations.Count == 3 && omit.Pages[0].Annotations.Count == 3, "passive annotations retained");
+    var retained = keep.Pages[0].Annotations[1].Elements.GetArray("/Dest");
+    Require(retained != null && retained.Elements.GetObject(0) == keep.Pages[1], "internal link remapped");
+    Require(!omit.Pages[0].Annotations[1].Elements.ContainsKey("/Dest") && !omit.Pages[0].Annotations[1].Elements.ContainsKey("/A"), "omitted target disabled");
+    Require(keep.Pages[0].Annotations[0].Elements.GetDictionary("/A")?.Elements.GetString("/URI") == "https://example.org/", "retained URI");
+    var joined = await pdf.AssembleAsync([new(source, 2, 90), new(Path.Combine(result, "Part 0002.pdf"), 1)], folder, "merged", default);
+    using var merged = PdfSharp.Pdf.IO.PdfReader.Open(joined);
+    Require(merged.PageCount == 2 && merged.Pages[0].Rotate == 90 && merged.Outlines.Count == 2, "cross-source merge");
+    Require(Hash(source) == hash, "input preserved");
+    using var stop = new CancellationTokenSource();
+    await Expect<OperationCanceledException>(() => OutputGroup.WriteAsync(folder, "cancelled", 2, async (dir, index, ct) =>
+    {
+        var file = Path.Combine(dir, "page.png");
+        await File.WriteAllTextAsync(file, "staging", ct);
+        stop.Cancel();
+        return file;
+    }, stop.Token));
+    Require(!Directory.EnumerateDirectories(folder, ".tabrilo-*").Any() && !Directory.Exists(Path.Combine(folder, "cancelled")), "group cleanup");
+}
+
+async Task OfficeLayouts(string engine)
+{
+    var folder = Folder("office");
+    var pdf = new Pdfs(qpdf);
+    var renderer = new OfficeRenderer(engine, pdf);
+    var blocked = Path.Combine(folder, "linked.docx");
+    File.Copy(Path.Combine(repository, "tests/fixtures/layout.docx"), blocked);
+    using (var archive = ZipFile.Open(blocked, ZipArchiveMode.Update))
+    using (var output = new StreamWriter(archive.CreateEntry("word/relationships.rels").Open()))
+        output.Write("""<Relationships><Relationship Type="image" TargetMode="External" Target="https://example.invalid/sample.png"/></Relationships>""");
+    var blockedHash = Hash(blocked);
+    await Expect<NotSupportedException>(() => renderer.RenderAsync(blocked, _ => throw new Exception("Unexpected output"), default));
+    Require(Hash(blocked) == blockedHash, "Office external resource rejection preserved source");
+    string? previousRoot = null;
+    foreach (var ext in new[] { "docx", "pptx" })
+    {
+        var source = Path.Combine(repository, "tests/fixtures/layout." + ext);
+        var hash = Hash(source);
+        await renderer.RenderAsync(source, async path =>
+        {
+            var root = Path.GetDirectoryName(path)!;
+            Require(previousRoot != root && Directory.Exists(Path.Combine(root, "profile", "user")), "per-render private profile");
+            previousRoot = root;
+            using var stop = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+            await Expect<OperationCanceledException>(() => renderer.RenderAsync(source, _ => throw new Exception("Cancelled work ran"), stop.Token));
+            using var inspect = PdfSharp.Pdf.IO.PdfReader.Open(path);
+            Require(inspect.PageCount == 2, ext + " page count");
+            File.Copy(path, Path.Combine(folder, ext + ".pdf"));
+            using var document = await pdf.OpenForRenderingAsync(path, null, default);
+            for (var page = 1; page <= 2; page++)
+            {
+                var image = await Pdfs.RenderPageAsync(document, page, 150, page == 1 ? ImageFormat.Jpeg : ImageFormat.Png, default);
+                var output = await Images.SaveAsync(image, folder, ext + "-" + page, default);
+                Require(Decode(output).PixelWidth > 600, "independent page image decode");
+            }
+            return path;
+        }, default);
+        Require(Hash(source) == hash && !Directory.Exists(previousRoot), "Office source preserved and private profile removed");
+    }
 }
 
 async Task PdfCompress()
@@ -337,13 +744,13 @@ async Task UpdateTrust()
         var feed = Encoding.UTF8.GetBytes($"""
             <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item>
               <sparkle:channel>isolated-test</sparkle:channel><sparkle:minimumSystemVersion>10.0.19041</sparkle:minimumSystemVersion>
-              <enclosure url="{site}/setup.exe" length="{bytes.Length}" sparkle:os="windows-x64"
+              <enclosure url="{site}/setup.exe" length="{bytes.Length}" sparkle:os="windows-x64" flavor="core" sha256="{Convert.ToHexString(SHA256.HashData(bytes))}"
                 sparkle:version="0.2.0" sparkle:edSignature="{signature}" />
             </item></channel></rss>
             """);
         var signed = Encoding.ASCII.GetBytes(Convert.ToBase64String(Ed25519.Sign(feed, secret)));
         var bad = Encoding.ASCII.GetBytes(Convert.ToBase64String(new byte[64]));
-        var config = new UpdateChannel(1, "isolated-test", "windows-x64", site + "/appcast.xml", site, Convert.ToBase64String(key));
+        var config = new UpdateChannel(2, "isolated-test", "windows-x64", site + "/appcast.xml", site, Convert.ToBase64String(key));
         using var updates = new Updates(config, new Version(0, 1, 0), new Version(10, 0, 19045),
             new Responses(new Dictionary<string, byte[]> { ["/appcast.xml"] = feed, ["/appcast.xml.signature"] = signed,
                 ["/setup.exe"] = "interrupted"u8.ToArray() }));
@@ -351,12 +758,28 @@ async Task UpdateTrust()
         Require(valid?.Version == new Version(0, 2, 0), "signed isolated appcast");
         await Expect<InvalidDataException>(() => updates.DownloadAsync(valid!, folder, default));
         Require(!Directory.EnumerateFiles(Path.Combine(folder, "Updates")).Any(), "incomplete download cleanup");
+        using var wrongSigner = new Updates(config, new Version(0, 1, 0), Environment.OSVersion.Version,
+            new Responses(new Dictionary<string, byte[]> { ["/setup.exe"] = bytes }));
+        var wrongSignature = valid! with { Signature = Convert.ToBase64String(new byte[64]) };
+        try { await wrongSigner.DownloadAsync(wrongSignature, folder, default); throw new Exception("Wrong installer signature accepted."); }
+        catch (InvalidDataException error) when (error.Message.Contains("strict signature")) { }
+        Require(!Directory.EnumerateFiles(Path.Combine(folder, "Updates")).Any(), "invalid installer signature cleanup");
         using var tampered = new Updates(config, new Version(0, 1, 0), new Version(10, 0, 19045),
             new Responses(new Dictionary<string, byte[]> { ["/appcast.xml"] = feed, ["/appcast.xml.signature"] = bad }));
         await Expect<InvalidDataException>(() => tampered.CheckAsync(default));
         using var downgrade = new Updates(config, new Version(0, 2, 1), new Version(10, 0, 19045),
             new Responses(new Dictionary<string, byte[]> { ["/appcast.xml"] = feed, ["/appcast.xml.signature"] = signed }));
         Require(await downgrade.CheckAsync(default) is null, "refuse downgrade");
+        foreach (var (field, replacement) in new[] { ("windows-x64", "macos-arm64"), ("flavor=\"core\"", "flavor=\"office\""),
+            ("10.0.19041", "99.0.1"), ("version=\"0.2.0\"", "version=\"0.2\""),
+            ($"length=\"{bytes.Length}\"", $"length=\"{Updates.MaximumInstaller + 1}\"") })
+        {
+            var edited = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(feed).Replace(field, replacement));
+            var proof = Encoding.ASCII.GetBytes(Convert.ToBase64String(Ed25519.Sign(edited, secret)));
+            using var invalid = new Updates(config, new Version(0, 1, 0), Environment.OSVersion.Version, new Responses(
+                new Dictionary<string, byte[]> { ["/appcast.xml"] = edited, ["/appcast.xml.signature"] = proof }));
+            await Expect<InvalidDataException>(() => invalid.CheckAsync(default));
+        }
     }
     finally { CryptographicOperations.ZeroMemory(seed); CryptographicOperations.ZeroMemory(secret); }
 }

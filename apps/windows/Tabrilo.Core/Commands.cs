@@ -5,7 +5,7 @@ namespace Tabrilo.Core;
 public sealed record CommandSpec(string Id, string Label, string Scope, string? Shortcut, string[] Kinds)
 {
     public bool AppliesTo(IReadOnlyCollection<string> inputs) =>
-        Scope == "operation" && inputs.Count > 0 && inputs.All(path => Kinds.Contains(FileKinds.Classify(path)));
+        Scope == "operation" && inputs.Count > 0 && (Kinds.Contains("any") || inputs.All(path => Kinds.Contains(FileKinds.Classify(path))));
 }
 
 public static class Commands
@@ -29,7 +29,7 @@ public static class FileKinds
 {
     private static readonly IReadOnlyDictionary<string, string> ByExtension = Load();
 
-    public static string Classify(string path) => ByExtension.GetValueOrDefault(Path.GetExtension(path), "unsupported");
+    public static string Classify(string path) => Directory.Exists(path) ? "directory" : ByExtension.GetValueOrDefault(Path.GetExtension(path), "unsupported");
 
     private static Dictionary<string, string> Load()
     {

@@ -14,6 +14,64 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  relink:
+    name: Rebuild native codec with replacement libde265
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73
+        with:
+          global-json-file: global.json
+      - name: Compile and decode with the replacement library
+        shell: pwsh
+        run: ./scripts/relink-magick.ps1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: codec-relink-result
+          path: artifacts/materials/magick-native/relink-*/verification.json
+          retention-days: 7
+          if-no-files-found: error
+  installed-acceptance:
+    name: Installed ${{ matrix.old }} to ${{ matrix.new }}
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { old: core, new: core }
+          - { old: office, new: office }
+          - { old: office, new: core }
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73
+        with:
+          global-json-file: global.json
+      - name: Build and exercise per-user installers on a fresh runner
+        shell: pwsh
+        run: |
+          ./scripts/restore-tools.ps1 -Installer
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ./scripts/test-installer.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $workspaceVolume = Get-Volume -FilePath (Get-Item ./Directory.Build.props).FullName
+          $other = Get-Volume | Where-Object { $_.DriveLetter -and $_.DriveType -eq 'Fixed' -and
+            $_.UniqueId -ne $workspaceVolume.UniqueId } | Select-Object -First 1
+          if ($other) {
+            $env:TABRILO_TEST_SECOND_VOLUME = New-Item -ItemType Directory -Path "$($other.DriveLetter):/Tabrilo-$env:GITHUB_RUN_ID" -Force
+          }
+          if ('${{ matrix.old }}' -eq 'office' -or '${{ matrix.new }}' -eq 'office') {
+            $office = (Get-Content -Raw shared/dependencies.json | ConvertFrom-Json).assets.office
+            Invoke-WebRequest $office.url -OutFile ".tools/LibreOffice_$($office.version).msi"
+          }
+          ./scripts/rehearse-update.ps1 -OldFlavor '${{ matrix.old }}' -NewFlavor '${{ matrix.new }}'
   test:
     name: Windows build and processing tests
     runs-on: windows-2025
@@ -37,6 +95,31 @@ jobs:
         id: tests
         shell: pwsh
         run: ./scripts/test.ps1 -Configuration Release
+      - name: Cancel an active native directory move between distinct volumes and retry
+        shell: pwsh
+        run: |
+          . ./scripts/common.ps1
+          $source = Get-Volume -FilePath (Get-Item ./Directory.Build.props).FullName
+          $target = Get-Volume | Where-Object { $_.DriveLetter -and $_.DriveType -eq 'Fixed' -and
+            $_.UniqueId -ne $source.UniqueId } | Select-Object -First 1
+          if (!$target) { throw 'The hosted transfer test requires two filesystem volumes.' }
+          $testRoot = New-Item -ItemType Directory -Path "$($target.DriveLetter):/Tabrilo-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          Invoke-TabriloDotnet @('run','--project',$TabriloProjects.Tests,'-c','Release','--no-build','--','--folder-transfer',$testRoot.FullName)
+      - name: Exercise high contrast on the disposable desktop
+        if: '!cancelled() && steps.tests.outcome == ''success'''
+        shell: pwsh
+        run: ./scripts/test-desktop.ps1 -HostedHighContrast
+      - name: Keep synthetic accessibility captures
+        if: '!cancelled() && steps.tests.outcome == ''success'''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: windows-high-contrast
+          path: |
+            artifacts/tests/*/desktop.json
+            artifacts/tests/*/settings-*.png
+            artifacts/tests/*/wheel-*.png
+          retention-days: 7
+          if-no-files-found: warn
       - name: Record failure summary
         if: failure()
         shell: pwsh

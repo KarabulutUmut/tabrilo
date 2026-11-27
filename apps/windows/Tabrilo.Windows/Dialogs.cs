@@ -16,26 +16,31 @@ namespace Tabrilo.Windows;
 
 internal static class Dialogs
 {
-    public static Window WindowFor(Window owner, string title, Panel panel, double width = 530, double height = 500) =>
-        new()
+    public static Window WindowFor(Window? owner, string title, Panel panel, double width = 530, double height = 500)
+    {
+        if (owner is not { IsVisible: true, WindowState: not WindowState.Minimized }) owner = null;
+        return new()
         {
             Owner = owner, Title = title + " – Tabrilo", Width = width, Height = height,
-            MinWidth = 330, MinHeight = 250, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            MinWidth = 330, MinHeight = 200, WindowStartupLocation = owner is null ?
+                WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner,
             Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }
         };
+    }
 
-    public static T? Ask<T>(Window owner, string title, Func<Panel, Func<T>> create, string button = "Continue") where T : class
+    public static T? Ask<T>(Window? owner, string title, Func<Panel, Func<T>> create, string button = "Continue",
+        double height = 500) where T : class
     {
         var panel = new StackPanel { Margin = new Thickness(20) };
         Controls.Heading(panel, title);
-        var dialog = WindowFor(owner, title, panel);
+        var dialog = WindowFor(owner, title, panel, height: height);
         var read = create(panel);
         T? result = null;
         var error = Controls.Text("", 13, true);
         panel.Children.Add(error);
         var actions = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         actions.Children.Add(Controls.Button("Cancel", dialog.Close));
-        actions.Children.Add(Controls.Button(button, () =>
+        if (button.Length != 0) actions.Children.Add(Controls.Button(button, () =>
         {
             try { result = read(); dialog.DialogResult = true; }
             catch (ArgumentException exception) { error.Text = exception.Message; }
@@ -46,11 +51,10 @@ internal static class Dialogs
         {
             if (args.Key == Key.Escape) { dialog.Close(); args.Handled = true; }
         };
-        dialog.ShowDialog();
-        return result;
+        return dialog.ShowDialog() == true ? result ?? read() : null;
     }
 
-    public static void Details(Window owner, string title, string text)
+    public static void Details(Window? owner, string title, string text)
     {
         var panel = new StackPanel { Margin = new Thickness(20) };
         var dialog = WindowFor(owner, title, panel, 620, 500);
@@ -61,7 +65,7 @@ internal static class Dialogs
         dialog.ShowDialog();
     }
 
-    public static string? Password(Window owner) => Ask<string>(owner, "Unlock PDF", panel =>
+    public static string? Password(Window? owner) => Ask<string>(owner, "Unlock PDF", panel =>
     {
         panel.Children.Add(Controls.Text("Enter the password for this operation."));
         var password = new PasswordBox { Margin = new Thickness(0, 8, 0, 8), MaxLength = 512 };
@@ -69,7 +73,7 @@ internal static class Dialogs
         return () => password.Password;
     }, "Unlock");
 
-    public static PdfPageChoice[]? ArrangePages(Window owner, string title, PdfPageChoice[] pages,
+    public static PdfPageChoice[]? ArrangePages(Window? owner, string title, PdfPageChoice[] pages,
         Func<KeyEventArgs, string, bool> keys, Func<string[]?> choosePdf,
         Func<string[], System.Threading.Tasks.Task<PdfPageChoice[]>> inspect,
         Func<PdfPageChoice, System.Threading.CancellationToken, System.Threading.Tasks.Task<ProcessedImage>> thumbnail)
@@ -77,9 +81,10 @@ internal static class Dialogs
         var layout = new StackPanel { Margin = new Thickness(18) };
         Controls.Heading(layout, title);
         var dialog = WindowFor(owner, title, layout, 750, 640);
+        layout.Children.Add(Controls.Text(Workflows.AssemblyNotice, 13, true));
         var entries = new List<PdfPageChoice>(pages);
-        var undo = new Stack<PdfPageChoice[]>();
-        var redo = new Stack<PdfPageChoice[]>();
+        var undo = new EditHistory<PdfPageChoice[]>();
+        var redo = new EditHistory<PdfPageChoice[]>();
         const int pageSize = 6;
         var list = new ListBox { Height = 326, SelectionMode = SelectionMode.Extended };
         var grid = new FrameworkElementFactory(typeof(UniformGrid));
@@ -150,6 +155,7 @@ internal static class Dialogs
         {
             var indices = Selected();
             if (indices.Length == 0) return;
+            if (entries.Count + indices.Length > 2000) { status.Text = "Choose up to 2000 pages."; return; }
             Save();
             for (var i = indices.Length - 1; i >= 0; i--) entries.Insert(indices[i], entries[indices[i]]);
             Refresh(indices[0]);
@@ -201,7 +207,7 @@ internal static class Dialogs
 
         int[] Selected() => list.SelectedItems.Cast<PageRow>().Select(row => row.Index).Order().ToArray();
         void Save() { undo.Push(entries.ToArray()); redo.Clear(); }
-        void Restore(Stack<PdfPageChoice[]> from, Stack<PdfPageChoice[]> to)
+        void Restore(EditHistory<PdfPageChoice[]> from, EditHistory<PdfPageChoice[]> to)
         {
             if (!from.TryPop(out var old)) return;
             to.Push(entries.ToArray());
@@ -223,11 +229,15 @@ internal static class Dialogs
         }
         void Move(int direction)
         {
-            var at = list.SelectedItem is PageRow row ? row.Index : -1;
-            if (at < 0 || at + direction < 0 || at + direction >= entries.Count) return;
+            var indices = Selected();
+            if (indices.Length == 0 || indices[0] + direction < 0 || indices[^1] + direction >= entries.Count) return;
             Save();
-            (entries[at], entries[at + direction]) = (entries[at + direction], entries[at]);
-            Refresh(at + direction);
+            foreach (var at in direction < 0 ? indices : indices.Reverse())
+                (entries[at], entries[at + direction]) = (entries[at + direction], entries[at]);
+            Refresh(indices[0] + direction);
+            var selected = indices.Select(index => index + direction).ToHashSet();
+            foreach (var item in list.Items.Cast<PageRow>().Where(item => selected.Contains(item.Index)))
+                if (!list.SelectedItems.Contains(item)) list.SelectedItems.Add(item);
         }
     }
 
@@ -245,45 +255,6 @@ internal static class Dialogs
             Preview = image;
             PropertyChanged?.Invoke(this, new(nameof(Preview)));
         }
-    }
-
-    public static void QrResults(Window owner, IReadOnlyList<(string Name, QrResult Result)> results)
-    {
-        if (results.Count == 0) { Details(owner, "Read QR", "No QR code found."); return; }
-        var panel = new StackPanel { Margin = new Thickness(20) };
-        var dialog = WindowFor(owner, "Read QR", panel, 670, 550);
-        Controls.Heading(panel, $"{results.Count} QR result{(results.Count == 1 ? "" : "s")}");
-        var labels = results.Select(item =>
-            $"{item.Name}{(item.Result.Page is { } page ? $" · page {page}" : "")} · {item.Result.Type}").ToArray();
-        var list = new ListBox { Height = 130, ItemsSource = labels };
-        Controls.AddLabel(panel, "Detected codes", list);
-        var payload = Controls.Field(panel, "Payload", "");
-        payload.IsReadOnly = true;
-        payload.TextWrapping = TextWrapping.Wrap;
-        var points = Controls.Text("", 12, true);
-        panel.Children.Add(points);
-        var actions = new WrapPanel();
-        panel.Children.Add(actions);
-        actions.Children.Add(Controls.Button("Copy payload", () => Clipboard.SetText(payload.Text)));
-        var open = Controls.Button("Open link…", () =>
-        {
-            if (list.SelectedIndex < 0 || results[list.SelectedIndex].Result.AllowedLink is not { } uri) return;
-            if (MessageBox.Show(dialog, "Open this address in your browser?\n\n" + uri.AbsoluteUri,
-                "Confirm link", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes)
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
-        });
-        actions.Children.Add(open);
-        actions.Children.Add(Controls.Button("Done", dialog.Close, true));
-        list.SelectionChanged += (_, _) =>
-        {
-            if (list.SelectedIndex < 0) return;
-            var value = results[list.SelectedIndex].Result;
-            payload.Text = value.Payload;
-            points.Text = string.Join(" · ", value.Location.Select(point => $"({point.X}, {point.Y})"));
-            open.IsEnabled = value.AllowedLink is not null;
-        };
-        list.SelectedIndex = 0;
-        dialog.ShowDialog();
     }
 
     public static int[] ParsePages(string input, int total)

@@ -5,6 +5,7 @@
     <Project Path="apps/windows/Tabrilo.Windows/Tabrilo.Windows.csproj" />
   </Folder>
   <Folder Name="/Tests/">
+    <Project Path="tests/windows/Tabrilo.DesktopTests/Tabrilo.DesktopTests.csproj" />
     <Project Path="tests/windows/Tabrilo.Tests/Tabrilo.Tests.csproj" />
   </Folder>
 </Solution>

@@ -12,6 +12,7 @@
       "heic",
       "heif"
     ],
+    "office": ["docx", "pptx"],
     "pdf": [
       "pdf"
     ],
@@ -43,9 +44,9 @@
     "jpegAlpha": "white-matte",
     "pdfRewrite": "new-document",
     "updateChannels": [
-      "windows-x64/stable",
-      "macos-arm64/stable",
-      "macos-x64/stable"
+      "windows-x64/stable/core", "windows-x64/stable/office",
+      "macos-arm64/stable/core", "macos-arm64/stable/office",
+      "macos-x64/stable/core", "macos-x64/stable/office"
     ],
     "outputCollision": "numeric-suffix"
   }

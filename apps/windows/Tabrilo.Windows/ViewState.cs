@@ -13,7 +13,7 @@ internal sealed class ActionCommand(Action<object?> execute, Predicate<object?>?
     public void Execute(object? parameter) => execute(parameter);
 }
 
-internal sealed record InputItem(string Path, string Label);
+internal sealed record InputItem(string Path, string Label, bool Clipboard);
 
 internal sealed class ViewState : INotifyPropertyChanged
 {

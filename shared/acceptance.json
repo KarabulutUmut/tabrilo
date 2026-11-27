@@ -72,8 +72,13 @@
     "desktop": [
       "real Explorer/OLE source",
       "inactive drag and text editing unaffected",
+      "Shift/Ctrl/Alt switch in one held drag; modifier release retains mode",
+      "physical release outside, center or gap cancels; exit and reenter before release commits once",
+      "late native Drop after cancellation never executes; second drag starts fresh",
+      "same six universal actions for folders, unknown and known files",
       "screen readers, DPI, clipboard, shortcuts and appearance"
     ],
+    "office": ["DOCX and PPTX layout, page-two content and font substitution", "private profile, cancellation and linked-resource refusal"],
     "package": [
       "clean per-user install",
       "offline app execution",
@@ -82,7 +87,9 @@
     "updates": [
       "strict signed feed and installer",
       "interrupted payload, older version and signature refusal",
-      "installed old-to-new update"
+      "installed old-to-new core and Office upgrades with matching flavor, signed length, SHA-256 and payload signature",
+      "after upgrading Office, render both multipage fixtures offline",
+      "wrong edition, system, architecture, length or signature rejects with a reason"
     ]
   }
 }

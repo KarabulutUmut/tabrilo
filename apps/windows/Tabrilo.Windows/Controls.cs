@@ -20,7 +20,7 @@ internal static class Controls
 
     public static TextBlock Text(string text, double size = 14, bool secondary = false)
     {
-        var element = new TextBlock { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap };
+        var element = new TextBlock { Text = text, FontSize = size * Theme.TextScale, TextWrapping = TextWrapping.Wrap };
         element.SetResourceReference(TextBlock.ForegroundProperty, secondary ? "Secondary" : "Text");
         return element;
     }
@@ -84,25 +84,13 @@ internal static class Controls
         return bitmap;
     }
 
-    public static void CopyImage(byte[] bytes)
+    public static void CopyImage(byte[] png, BitmapSource image)
     {
-        var image = Bitmap(bytes);
         var data = new DataObject();
-        var pngSignature = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 };
-        var pngData = bytes.AsSpan().StartsWith(pngSignature)
-            ? new MemoryStream(bytes, writable: false) : EncodePng(image);
+        using var pngData = new MemoryStream(png, writable: false);
         data.SetData("PNG", pngData);
         data.SetImage(image);
         Clipboard.SetDataObject(data, true);
     }
 
-    private static MemoryStream EncodePng(BitmapSource image)
-    {
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(image));
-        var data = new MemoryStream();
-        encoder.Save(data);
-        data.Position = 0;
-        return data;
-    }
 }

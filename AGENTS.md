@@ -2,7 +2,7 @@
 
 ## Mission and boundaries
 
-Build the complete scoped Windows v1, then the native macOS counterpart. This is not a throwaway prototype.
+Bring Windows through owner acceptance, then continue native macOS work on the MacBook from the merged baseline.
 Use C#/.NET 10/WPF on Windows and Swift/AppKit on macOS. Do not substitute a web UI or cross-platform UI framework.
 Write original application code and assets from this specification and primary dependency/platform documentation.
 Do not fetch, clone, translate, rebrand, or copy a reference application's source, tests, assets, docs, or update identity.
@@ -40,6 +40,12 @@ Legal notices, upstream license texts, and generated machine reports are exempt;
 Store test evidence as bounded ignored artifacts or CI artifacts. Git history, PRs, and release notes keep historical detail.
 Keep STATUS.md at no more than five prioritized next actions. Replace its old handoff rather than accumulating handoffs.
 
+## Wheel acceptance
+
+Use the mode contract in PRODUCT.md and shared/contracts/wheel.json. Test physical release outside,
+in the center and in sector gaps. For outside release, use a real receiving folder and check both
+the source hash and destination contents. Record returning before release and native-source evidence per OS.
+
 ## Engineering rules
 
 Use typed, cancellable operations and a shared semantic command registry; keep processing out of UI event handlers.
@@ -61,7 +67,8 @@ Archive extraction must enforce on-disk containment and streamed resource limits
 PDF metadata removal must not leave previous incremental metadata revisions in the output.
 Keep passwords and signing keys out of source, logs, process arguments, app bundles, and public CI artifacts.
 Never bypass updater verification, even when production signing credentials are absent.
-Use ephemeral test keys only in an isolated test channel; no production key generation or credential upload without approval.
+Use ephemeral test keys only in an isolated test channel. Exercise both installed edition-preserving updates.
+A deliberate edition switch has its own test. Production key generation and credential upload require owner approval.
 
 ## Git and release discipline
 
@@ -80,6 +87,7 @@ Run unit, integration, adversarial, native-interaction, packaging, and updater t
 Keep input-hash preservation assertions and destructive/cancellation failure tests.
 Never relabel a skipped test as passed or disable a failing gate to get green CI.
 A GUI test needs an actual interactive desktop and evidence; creating its test code is not executing it.
+Record keyboard-driven native checks and Explorer drag, visual, and external clipboard acceptance separately.
 Windows-only work cannot establish Mac usability, permissions, Finder integration, or Mac update success.
 Record exact commands, environment, exit codes, and artifact paths in the current handoff/evidence.
 Use statuses: not started, implemented/unverified, verified with evidence, blocked.

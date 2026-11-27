@@ -58,15 +58,6 @@
       "kinds": []
     },
     {
-      "id": "image.convert",
-      "label": "Convert",
-      "scope": "operation",
-      "shortcut": null,
-      "kinds": [
-        "image"
-      ]
-    },
-    {
       "id": "image.compress",
       "label": "Compress image",
       "scope": "operation",
@@ -236,6 +227,101 @@
       "shortcut": null,
       "kinds": [
         "archive"
+      ]
+    },
+    {
+      "id": "convert.jpg",
+      "label": "JPG",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image",
+        "pdf",
+        "office"
+      ]
+    },
+    {
+      "id": "convert.png",
+      "label": "PNG",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image",
+        "pdf",
+        "office"
+      ]
+    },
+    {
+      "id": "convert.pdf",
+      "label": "PDF",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image",
+        "office"
+      ]
+    },
+    {
+      "id": "convert.webp",
+      "label": "WebP",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "image"
+      ]
+    },
+    {
+      "id": "action.share",
+      "label": "Share",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "any"
+      ]
+    },
+    {
+      "id": "action.float",
+      "label": "Float",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "any"
+      ]
+    },
+    {
+      "id": "action.copy",
+      "label": "Copy",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "any"
+      ]
+    },
+    {
+      "id": "action.move",
+      "label": "Move",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "any"
+      ]
+    },
+    {
+      "id": "action.path",
+      "label": "Copy Path",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "any"
+      ]
+    },
+    {
+      "id": "action.terminal",
+      "label": "Terminal",
+      "scope": "operation",
+      "shortcut": null,
+      "kinds": [
+        "any"
       ]
     }
   ]

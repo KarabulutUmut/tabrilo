@@ -8,7 +8,7 @@ using Microsoft.Win32;
 
 namespace Tabrilo.Windows;
 
-internal sealed class Desktop(Window owner, Action quit) : IDisposable
+internal sealed class Desktop(Window owner, Action quit, Action results) : IDisposable
 {
     internal static readonly string InstallIdentity = typeof(Desktop).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
         .Single(attribute => attribute.Key == "TabriloInstallIdentity").Value!;
@@ -20,6 +20,7 @@ internal sealed class Desktop(Window owner, Action quit) : IDisposable
         {
             var menu = new System.Windows.Forms.ContextMenuStrip();
             menu.Items.Add("Open Tabrilo", null, (_, _) => Show());
+            menu.Items.Add("Job results", null, (_, _) => results());
             menu.Items.Add("Quit Tabrilo", null, (_, _) => quit());
             var executable = Environment.ProcessPath!;
             tray = new System.Windows.Forms.NotifyIcon

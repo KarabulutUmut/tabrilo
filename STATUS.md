@@ -1,96 +1,77 @@
-# Tabrilo current status
+# Tabrilo Windows review status
 
-Updated 2026-11-15. Windows development build. Stable acceptance remains open.
+Windows 0.2.0 review packages come from `ff2c490391384158a15bdd1a9694541c8728a1bb` on [draft PR #8](https://github.com/KarabulutUmut/tabrilo/pull/8).
+The later `59f3942` commit changes the test harness, component-audit tooling and receipts. The final handoff commit changes only the six project documents.
+Both are per-user, self-contained Windows x64 builds for OS build 19041 or newer. The local channel has no production feed.
+Testing used Windows 10 Home 22H2 build 19045.6466, PowerShell 7.6.9, SDK 10.0.404 and separate fresh hosted Windows runners.
 
-## Local environment and Git
+## Review packages
 
-Windows 10 Home 22H2 x64, build 19045.6466, PowerShell 7.6.9 and project-local
-.NET SDK 10.0.404. WPF and Windows.Data.Pdf ran natively. This is evidence for
-this host. Windows 11 and clean supported installations still need validation.
+| Edition | Local build ID | Installer bytes | Unpacked file bytes | Isolated installed file bytes including uninstaller |
+| --- | --- | ---: | ---: | ---: |
+| Core | `20261127-181131-8186927f` | 100,492,297 | 254,261,762 | 254,324,726 |
+| Office | `20261127-181214-62588332` | 615,288,263 | 1,860,777,313 | 1,860,840,276 |
 
-The local `codex/windows-v1` branch preserves the reviewed development
-checkpoint. The public origin is `KarabulutUmut/tabrilo`. This setup began
-with an empty remote. Bootstrap puts the development source and workflows
-on main once. Follow-up changes use pull requests.
+Start `payload/Tabrilo.exe` in the corresponding directory under `artifacts/package/local/0.2.0`.
+Both receipts, installer checksums and packaged self-checks passed. The paired manifest is
+`artifacts/promotion/ff2c490391384158a15bdd1a9694541c8728a1bb/windows-review.json`.
+It gives exact executable and Setup paths, SHA-256 digests, identities, sizes and release-note inputs.
 
-## Implementation and evidence
+## Windows verification matrix
 
-| Area | Status | Evidence |
-| --- | --- | --- |
-| Windows build and automated operations | Verified with evidence | Release integration log and generated synthetic files |
-| Image engines | Verified with evidence | Real HEIC, PNG, JPEG, WebP, BMP and TIFF cases; external clipboard and multi-image HEIF acceptance pending |
-| PDF engines and QR | Verified with evidence | Page rendering and assembly, normal and incremental Info rewrites, both compression paths, multi-result image and PDF QR |
-| Archive engines | Verified with evidence | ZIP, TAR, GZIP, TAR.GZ and single-volume RAR; limited safety/cleanup suite |
-| WPF desktop | Implemented/unverified | UI Automation observed Home, Settings, native file picker and Ctrl+Space wheel with Convert focused |
-| Explorer gesture and visual acceptance | Blocked | Desktop capture returned `FrameArrived timed out`; coordinate input geometry unavailable |
-| Windows installer and updater | Verified with evidence | Per-user 0.1.0 → 0.2.0 using strict NetSparkle verification and ephemeral keys; uninstall preserved local state and export |
-| Shared contracts and Mac shell | Implemented/unverified | AppKit source and bundle script consume the shared catalog; Mac build/session unavailable |
-| Hosted Windows CI | Verified with evidence | Clean checkout built and passed 11/11 groups and the unsigned payload self-check |
-| Production distribution | Blocked | Acceptance, binary redistribution review, publisher certificate, approved update key and feed required |
+| Area | Status and executed evidence |
+| --- | --- |
+| Routing and publication | Verified with evidence. Typed command registry, three modes, compatible formats, source-adjacent exports, collision-safe siblings, original hashes, cancellation and partial batches passed. |
+| Images | Verified with evidence. Required still-image codecs, HEIF fixture, JPEG alpha, orientation, edits/marks/framing, secure PNG masks and transformed coordinates passed. WIC and Pillow independently decoded outputs. |
+| PDF | Verified with evidence. Native page render, metadata full rewrite, guarded page assembly, links/destinations and both compression modes passed. PDFium matched all nine owner split pages in text, geometry and pixels. |
+| QR and archives | Verified with evidence. Multiple QR locations, ZIP/TAR/GZIP/TGZ/RAR, streamed limits, stage/rollback ownership, collision and input preservation passed. Additional native archive stress covered 160 publications. |
+| Office | Verified with evidence. Private offline LibreOffice 26.8.3.1 rendered two-page DOCX/PPTX with tables, embedded imagery and a missing title font. Page two had distinct text and pixels. External links failed safely. |
+| Real Explorer | Verified with evidence. Owner completed outside/center/gap/Esc and mode switching on 0.2.0. Automated Explorer on the packaged revision repeated five drags. Source SHA-256 stayed fixed, Receiving stayed empty and returning to JPG wrote one adjacent 100 × 70 JPEG. |
+| Universal actions | Verified with evidence. Earlier physical Share/cancel, Float drag-out, Explorer file-reference paste, exact Unicode paths in Notepad and Terminal working directory checks are retained. |
+| Move | Verified with evidence. Distinct volume GUIDs, file/folder success, collision, pre-cancel, in-flight file cancel, partial counts and safe retry. Cancelling the real Windows folder transfer left 3,748 source and 252 destination files in one run. All 4,000 hashes passed after retry. |
+| Native UI and load | Verified with evidence. Real wheel captures, feedback, both Settings themes, 150% text, Edit/Redact, PDF page previews, keyboard focus, monitor-edge containment and hosted system high contrast. Three fresh hosted processes preserved document colors and tile edges in high contrast and exited cleanly. |
+| External redaction paste | Verified with evidence. On `a9dd5f2`, Paint and Save copy produced 7,000 identical RGBA pixels including 425 opaque mask pixels. Independent PNG inspection found no metadata. The harness could not confirm restoration of the previous clipboard. |
+| Packages and upgrades | Verified with evidence. Both installed 0.1.99 apps accepted signed 0.2.0 upgrades of the same edition. A newer manually selected Office → core Setup also passed. Corrupt/truncated input preserved the old install. |
+| Update UI | Verified with evidence. Actual installed apps handled download/install consent and relaunched. History, settings and exports survived uninstall. The upgraded Office copy rendered both DOCX and PPTX offline. |
+| Security | Verified with evidence. Signed feed and installer, SHA-256, edition, origin, version/OS and PE identity checks. Main archive alert #1 is still open at `984ea4b3`. PR analysis and native rollback regressions are separate evidence. |
+| Hardware | Implemented/unverified on mixed-DPI or negative-coordinate layouts. Both attached displays reported 96 DPI and nonnegative origins. Edge placement passed on both. |
+| Editable PDF → DOCX/PPTX | Not started. Editable reconstruction remains explicit future scope. |
 
-## Reported local evidence from the Windows build
+The packaged core reached input-idle in 835 ms with an 82,321,408-byte working set.
+During 8 real encodes, 24 wheel openings took 46.9 ms median and 69.6 ms maximum. Cancellation took 29.5 ms.
+The desktop driver’s working set went from 272,613,376 to 264,306,688 bytes. The installed Office coordinator
+verified a 615,290,304-byte signed Setup. Both local installed suites, including consent, relaunch and uninstall, passed 21/21.
 
-Run from the checkout with native PowerShell 7.
+## Reproduce and inspect
 
-- `pwsh -NoProfile -File scripts/doctor.ps1` returned exit 0. See `artifacts/verification/doctor.log`.
-- `pwsh -NoProfile -File scripts/test.ps1 -Configuration Release` runs the budget
-  checker and build before the integration tests. Exit 0, 11/11 groups.
-  See `artifacts/verification/test-release.log`.
-- `pwsh -NoProfile -File scripts/package.ps1 -Configuration Release` prints the
-  package and executable paths in `artifacts/verification/package-release.log`. Exit 0.
-  `artifacts/verification/package-smoke.log` records the self-contained startup check and installer digest.
-- `scripts/test.ps1 -Configuration Release -OldInstaller $oldSetup -NewInstaller $newSetup`
-  returned exit 0 with 12/12 groups. See `artifacts/verification/installed-update.log`
-  and the `package-isolated-old.log` and `package-isolated-new.log` files for both paths.
-- `artifacts/verification/desktop-uia.txt` records the native interaction and capture limits.
-- Use `scripts/run.ps1 -Configuration Release` to run the framework-dependent
-  development build or launch the self-contained `payload/Tabrilo.exe` printed by packaging.
+From native PowerShell 7 at the root, run `./scripts/check-manifests.ps1`, `./scripts/check-docs.ps1 -SelfTest`
+and `./scripts/test.ps1 -Configuration Release`. The configured Office/owner-fixture run passed 20/20 with zero build warnings.
+`./scripts/test-desktop.ps1` exercises visible WPF windows. README gives both installed rehearsal commands.
+External Windows UI Automation verified all six Home buttons, the feedback actions and four named, keyboard-focusable Settings selectors in the packaged core. See `verification/rc-desktop/final-accessibility.json`.
+The following evidence paths are relative to `artifacts/`. Private inputs and document contents stay off CI.
 
-## Open Windows acceptance
+- `verification/surface-candidate-tests.log`, `verification/final-independent.json` and `verification/archive-stress.log` cover processing, source preservation and archive ownership.
+- `verification/windows-capabilities.json` maps all 37 command IDs to their formats, Windows dispatch paths, acceptance criteria and evidence.
+- `verification/rc-desktop/final-explorer.json`, `final-wheel-*.png`, `final-clipboard.json` and `independent-clipboard.log` in that directory record the packaged UI. `tests/20261127-182531-24768/` contains controls, themes, editors and load measurements.
+- `verification/final-office-update-ui.log` and `verification/final-core-update-ui.log` cover the isolated interactive Office and core upgrades. `verification/final-hosted-*.log` records clean-runner results.
+- [Installed package jobs](https://github.com/KarabulutUmut/tabrilo/actions/runs/46047580810) include the actual upgrade sizes. [Hosted accessibility](https://github.com/KarabulutUmut/tabrilo/actions/runs/46047563114) includes native captures.
 
-- The owner reports unsatisfactory visual quality and too many transitions into
-  the full application. Acceptance remains open. Quick operations should run
-  from the contextual wheel with sensible defaults and compact result feedback.
-  Open editors for selection, configuration, or preview.
-- Verify actual external Explorer OLE drag/drop, normal inactive drag, keyboard
-  navigation, clipboard interoperability, tray/startup, mixed DPI and light/dark screenshots.
-- Image region selection, adjustment undo and PDF thumbnail grids compile.
-  Exercise the editor controls and previews on the native desktop. Redaction offers PNG.
-- Protected/signed and complex PDF cases need fixtures. The isolated update test
-  uses the production verification code with an in-process test transport and a real installer.
-  The installed app's update UI and interruption during installation remain unverified.
-- The unsigned release gate returned exit 1 with the production environment disabled.
-- Expand the archive race, on-disk reparse, malformed-format, solid RAR,
-  multi-image HEIF and resource-limit cases. Verify packaged offline runs on Windows 11.
-- Review bundled Magick.NET LGPL corresponding source/relinking and qpdf
-  native redistributable terms before distribution. The production feed remains unconfigured.
+## Redistribution and external release gates
 
-## GitHub verification
-
-On the Windows host above, `scripts/restore-tools.ps1 -Validation` and
-`scripts/check-manifests.ps1` exited 0. `scripts/test.ps1 -Configuration Release`
-exited 0 with 11/11 groups. `scripts/package.ps1 -Configuration Release -PayloadOnly`
-and the payload's `--self-check` exited 0. Current logs are in
-`artifacts/verification/github-foundation-*.log`.
-
-The bootstrap [Windows run](https://github.com/KarabulutUmut/tabrilo/actions/runs/43758978806)
-passed both jobs on Windows Server 2025. The
-[C# CodeQL run](https://github.com/KarabulutUmut/tabrilo/actions/runs/43758978878)
-completed and raised one open high-severity
-[archive path alert](https://github.com/KarabulutUmut/tabrilo/security/code-scanning/1).
-Desktop interaction and installed updates are outside the hosted suite.
-
-The first Dependabot jobs completed for
-[Actions](https://github.com/KarabulutUmut/tabrilo/actions/runs/43758980721) and
-[NuGet](https://github.com/KarabulutUmut/tabrilo/actions/runs/43758980985).
-The NuGet PRs need solution-wide lockfile refreshes after central version
-changes. The initial [managed submission](https://github.com/KarabulutUmut/tabrilo/actions/runs/43759397138)
-hit `NETSDK1100`. Linux runner restore now opts into Windows targeting packs.
+Each payload includes 21 locked package/runtime records, native file hashes, 38 codec entries, upstream notices and exact source manifests.
+The Office cache holds all four matching release archives and 153 upstream external inputs, verified at 1,549,304,918 bytes total.
+The MSI inventory matched 19,423 Office files across 5,985 components, plus its administrative MSI. Ten alternative ARM64 CRT rows share x64 target names. The report indexes 236 headings in the shipped license at `materials/libreoffice-26.8.3.1/windows-components.json`.
+`scripts/restore-office-materials.ps1 -External` rebuilds the cache. The upstream build-input superset includes optional components.
+For Magick, every PE section matched the vendor DLL. The hosted replacement build loaded its re-linked DLL by verified SHA-256 and decoded HEIC. See `verification/final-relink-result/verification.json`.
+Both editions' eight qpdf CRT DLLs matched Microsoft's signed 14.51.36247.0 x64 redistributable byte-for-byte. See `materials/vc145/verification.json`. Distributor entitlement remains an owner decision.
+Office's nine x86 and ten x64 CRT DLLs also matched Microsoft's signed 14.44.35211.0 bundles byte-for-byte. Their MSI, CAB and individual file hashes are in `packaging/verification/windows-0.2.0.json`.
+Public promotion requires approved corresponding-source delivery, material clearance, a clean approved commit, publisher credentials, timestamping and signed edition-specific feeds.
+The 0.1.3 development channel needs manual migration. Local build, merge and production publication are independent.
 
 ## Next actions
 
-1. Triage the archive CodeQL alert and review NuGet submission and update PRs.
-2. Complete wheel, editor, clipboard and visual acceptance on a physical or capturable desktop.
-3. Extend PDF, format and filesystem safety fixtures. Validate installer interruption and clean Windows 11 offline use.
-4. Review redistribution and production signing and hosting after owner approval.
-5. Build AppKit on a Mac, implement operations and Finder integration using the shared contracts, then integrate Sparkle 2 and validate Mac installation and signed updates.
+1. Owner accepts the Windows review on open PR #8. A mixed-DPI/negative-origin station remains a hardware coverage gap.
+2. For distribution, complete recipient-access and publisher decisions against the material manifests. Keep signing and publication gated.
+3. After merge, branch from the accepted `main` on the MacBook. Start in `apps/macos/Sources/main.swift`, `DragWheel.swift`, `MacExports.swift`, `FileShelf.swift` and `SelfCheck.swift`.
+4. Implement remaining AppKit editors, PDF/QR/archive/Office tools, background jobs/results, Move, packaging and edition-preserving Sparkle 2 updates against the shared contracts, tokens and fixtures.
+5. Run native Finder release/cancellation, Control/Option, VoiceOver, clipboard, multi-display, first launch and installed-update acceptance on the MacBook. The [hosted AppKit check](https://github.com/KarabulutUmut/tabrilo/actions/runs/46047563160) covered compilation and fixture exports.

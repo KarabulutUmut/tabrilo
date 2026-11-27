@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "bindings": [
+    "Shift",
+    "Ctrl",
+    "Alt"
+  ],
+  "diameter": 328,
+  "innerRadius": 53,
+  "outerRadius": 162,
+  "halfGapRadians": 0.026,
+  "conversion": [
+    "convert.jpg",
+    "convert.png",
+    "convert.pdf",
+    "convert.webp"
+  ],
+  "tools": [
+    "image.compress",
+    "image.metadata",
+    "image.edit",
+    "image.annotate",
+    "image.frame",
+    "image.crop",
+    "image.redact",
+    "pdf.compress",
+    "pdf.metadata",
+    "pdf.split",
+    "pdf.organize",
+    "pdf.merge",
+    "qr.read",
+    "archive.extract"
+  ],
+  "actions": [
+    "action.share",
+    "action.float",
+    "action.copy",
+    "action.move",
+    "action.path",
+    "action.terminal"
+  ],
+  "symbols": {
+    "convert.jpg": "▧",
+    "convert.png": "▧",
+    "convert.pdf": "▤",
+    "convert.webp": "▧",
+    "image.compress": "⇲",
+    "pdf.compress": "⇲",
+    "image.redact": "■",
+    "image.crop": "⌑",
+    "image.frame": "□",
+    "image.edit": "✎",
+    "image.annotate": "✎",
+    "image.metadata": "ⓘ",
+    "pdf.metadata": "ⓘ",
+    "pdf.split": "⑂",
+    "pdf.merge": "⊕",
+    "pdf.organize": "⇅",
+    "qr.read": "▦",
+    "archive.extract": "↓",
+    "action.share": "↗",
+    "action.float": "◇",
+    "action.copy": "▣",
+    "action.move": "→",
+    "action.path": "⌁",
+    "action.terminal": ">_"
+  },
+  "destination": "source-parent"
+}

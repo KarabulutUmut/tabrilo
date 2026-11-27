@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <EmbeddedResource Include="../../../shared/contracts/wheel.json" LogicalName="Tabrilo.Wheel.json" />
     <EmbeddedResource Include="../../../shared/contracts/commands.json" LogicalName="Tabrilo.Commands.json" />
     <EmbeddedResource Include="../../../shared/contracts/formats.json" LogicalName="Tabrilo.Formats.json" />
   </ItemGroup>

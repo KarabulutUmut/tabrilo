@@ -1,0 +1,173 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0-windows10.0.19041": {
+      "Magick.NET.Core": {
+        "type": "Transitive",
+        "resolved": "15.1.0",
+        "contentHash": "WIaemRN4tJvw5BNUfsO8/V3LojV5FOCojQ/sQ4ruXme1o2frRYfcvHPhKV5E6TbYoEdVEvtGX+8Wbut0F2lJHg=="
+      },
+      "Microsoft.Extensions.DependencyInjection.Abstractions": {
+        "type": "Transitive",
+        "resolved": "8.0.2",
+        "contentHash": "3iE7UF7MQkCv1cxzCahz+Y/guQbTqieyxyaWKhrRO91itI9cOKO76OHeQDahqG4MmW5umr3CcCvGmK92lWNlbg=="
+      },
+      "Microsoft.Extensions.Logging.Abstractions": {
+        "type": "Transitive",
+        "resolved": "8.0.3",
+        "contentHash": "dL0QGToTxggRLMYY4ZYX5AMwBb+byQBd/5dMiZE07Nv73o6I5Are3C7eQTh7K2+A4ct0PVISSr7TZANbiNb2yQ==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.2"
+        }
+      },
+      "NetSparkleUpdater.Chaos.NaCl": {
+        "type": "Transitive",
+        "resolved": "0.9.4",
+        "contentHash": "bGUdkGMW/CvKFm6AMsufYJB9XpoK0TlRfIJ5yANZKhFUTSJe2gf6EO32ZgF9rT+S4h2ETdWHN/33weOnVFjWDQ=="
+      },
+      "SharpGen.Runtime": {
+        "type": "Transitive",
+        "resolved": "2.4.2-beta",
+        "contentHash": "niTtWAUov1F7wZGAlVeEvW+Tnqvg5yTmhI7rxmYu2Utoyu2TbC9tWWpUpMs0PQg5lu5svoYpCAztNjxCqMFP/w=="
+      },
+      "SharpGen.Runtime.COM": {
+        "type": "Transitive",
+        "resolved": "2.4.2-beta",
+        "contentHash": "9lxDFMiepqo3lJQzMSjECCIONeCc2f3Drokgj6HtrTLZcJSftNgcLbD6/iXYj2iphkwgrZb1oLsDOZxoFZkawQ==",
+        "dependencies": {
+          "SharpGen.Runtime": "2.4.2-beta"
+        }
+      },
+      "System.Formats.Asn1": {
+        "type": "Transitive",
+        "resolved": "11.0.0",
+        "contentHash": "RSIrJ7D8gEHykZWTfS/r9tz/G5YpxIQAaFFXSLLHhVaRed+/26KvqaXvUtqqMJMlNjubAcMvf3UJ+E6ABT8AWw=="
+      },
+      "Vortice.DirectX": {
+        "type": "Transitive",
+        "resolved": "3.8.3",
+        "contentHash": "nKwSavv0w5rDF7prSefqAVPDcTyqrfZxKFMVfttiXPfm62VdA/1d+b3PhCZpW4xO7jXczXDwjQdWgD1zGsvM8w==",
+        "dependencies": {
+          "SharpGen.Runtime": "2.4.2-beta",
+          "SharpGen.Runtime.COM": "2.4.2-beta",
+          "Vortice.Mathematics": "2.1.0"
+        }
+      },
+      "Vortice.DXGI": {
+        "type": "Transitive",
+        "resolved": "3.8.3",
+        "contentHash": "MbAUnTeQ6WD99ctAdrj5CQO2I7oaax0Kt2eVdWSUj0bYP9Ed0726+s7dIHe4+tqhpmINW/dcPt0mNtc72o+E0w==",
+        "dependencies": {
+          "SharpGen.Runtime": "2.4.2-beta",
+          "Vortice.DirectX": "3.8.3"
+        }
+      },
+      "Vortice.Mathematics": {
+        "type": "Transitive",
+        "resolved": "2.1.0",
+        "contentHash": "KK+SjNSuKdP+zbavekubi+vaeb1Jo4k87ZF6CMkVWjr6RjJwc8peVtmgzXXDIMy4ZC3ZISyk3llY3q65ISOkBQ=="
+      },
+      "Tabrilo": {
+        "type": "Project",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "[2.7.0, 2.7.0]",
+          "NetSparkleUpdater.SparkleUpdater": "[3.1.0, 3.1.0]",
+          "Tabrilo.Processing": "[0.2.0, )"
+        }
+      },
+      "tabrilo.core": {
+        "type": "Project"
+      },
+      "tabrilo.processing": {
+        "type": "Project",
+        "dependencies": {
+          "Magick.NET-Q8-x64": "[15.1.0, 15.1.0]",
+          "PDFsharp": "[6.2.4, 6.2.4]",
+          "SharpCompress": "[0.50.9, 0.50.9]",
+          "System.IO.Hashing": "[11.0.0, 11.0.0]",
+          "System.Security.Cryptography.Pkcs": "[11.0.0, 11.0.0]",
+          "Tabrilo.Core": "[0.2.0, )",
+          "Vortice.Direct3D11": "[3.8.3, 3.8.3]",
+          "ZXing.Net": "[0.16.11, 0.16.11]"
+        }
+      },
+      "tabrilo.tests": {
+        "type": "Project",
+        "dependencies": {
+          "Tabrilo": "[0.2.0, )",
+          "Tabrilo.Processing": "[0.2.0, )"
+        }
+      },
+      "BouncyCastle.Cryptography": {
+        "type": "CentralTransitive",
+        "requested": "[2.7.0, 2.7.0]",
+        "resolved": "2.7.0",
+        "contentHash": "U+12df8UEWHgBi04YVf/Lgi2dy3SItlIYvHjjEVa/BngCQIzDCDRBk50DDByCfDvSbe5pRNFr3b7UrVK2kMcLw=="
+      },
+      "Magick.NET-Q8-x64": {
+        "type": "CentralTransitive",
+        "requested": "[15.1.0, 15.1.0]",
+        "resolved": "15.1.0",
+        "contentHash": "Fo6mQGnG+MtO8ehF/vpGeN/4OlZRDLO7uv4v2yOlxJGxX0JurLMBt1nYMX4QzPVssdlnpI446W2PEw+27beHbQ==",
+        "dependencies": {
+          "Magick.NET.Core": "15.1.0"
+        }
+      },
+      "NetSparkleUpdater.SparkleUpdater": {
+        "type": "CentralTransitive",
+        "requested": "[3.1.0, 3.1.0]",
+        "resolved": "3.1.0",
+        "contentHash": "ohFNB4q1zDBBoi+j2SBy41NgIJCuXSDRuUY/2ZjQwAgjyZIK4uQkcJDsx0tu00wHCcpRdQijdtcaRG164haAEQ==",
+        "dependencies": {
+          "NetSparkleUpdater.Chaos.NaCl": "0.9.4"
+        }
+      },
+      "PDFsharp": {
+        "type": "CentralTransitive",
+        "requested": "[6.2.4, 6.2.4]",
+        "resolved": "6.2.4",
+        "contentHash": "GhTr9F1uOYXHCIEOB5PXIgqn5a8WLsJL2m0eewTA0IvY1j6N4HGXHKKmEyB90/N6vrjmYamf41V9zbmdW2HY3g==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.3"
+        }
+      },
+      "SharpCompress": {
+        "type": "CentralTransitive",
+        "requested": "[0.50.9, 0.50.9]",
+        "resolved": "0.50.9",
+        "contentHash": "Jm32AbptP318P+G4Bew0c72X7R1MXqImenXD9kfkygysZJCTfXfp01CLKuFhGvJGIxSw/dutEAaAlwNOZ8MBlw=="
+      },
+      "System.IO.Hashing": {
+        "type": "CentralTransitive",
+        "requested": "[11.0.0, 11.0.0]",
+        "resolved": "11.0.0",
+        "contentHash": "U+Bv2qCYt6eONi+arSP0QIp4uTO6os6uceBsqiAwruZ+Wo2HrRhO/0tj38M9URJtS+4DhAtT3ka2TGNFYsnhyQ=="
+      },
+      "System.Security.Cryptography.Pkcs": {
+        "type": "CentralTransitive",
+        "requested": "[11.0.0, 11.0.0]",
+        "resolved": "11.0.0",
+        "contentHash": "G8mTjSWrwaPJ2bJRbKuI4ZqdKUYcANK0KtNH3s8/va3nXiF/Pk/yhv2R17rv5PBKJO5+ZXDyhTnZXh0W9v0J8w==",
+        "dependencies": {
+          "System.Formats.Asn1": "11.0.0"
+        }
+      },
+      "Vortice.Direct3D11": {
+        "type": "CentralTransitive",
+        "requested": "[3.8.3, 3.8.3]",
+        "resolved": "3.8.3",
+        "contentHash": "JgFUswu2mgrSwcd0KRF2AnfeE5VbMEgcicmxPD1g2yXyomPIHbnX3wldBNHPOzzD0URC1WJ/pO1ymfi3imZwvg==",
+        "dependencies": {
+          "SharpGen.Runtime": "2.4.2-beta",
+          "Vortice.DXGI": "3.8.3"
+        }
+      },
+      "ZXing.Net": {
+        "type": "CentralTransitive",
+        "requested": "[0.16.11, 0.16.11]",
+        "resolved": "0.16.11",
+        "contentHash": "OZfAVu88hl87BffQ+rlWCj/vLvAhhCK4QnFaoveeF/MY8SjHNSYBQ3qyUEWlPKNgBQGh1syXhCDg10vUnCsqkg=="
+      }
+    }
+  }
+}

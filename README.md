@@ -4,7 +4,7 @@
 
 Tabrilo is a native desktop toolkit for working locally with images, PDFs, QR
 codes and archives. The Windows development build uses WPF and .NET 10. The
-macOS follow-up has an AppKit shell and shared command contracts.
+macOS app has an AppKit wheel, native image/PDF export, image compression and metadata tools, and file actions.
 
 Tabrilo is in development and has no approved public release. See
 [STATUS.md](STATUS.md) for verification and remaining acceptance work.
@@ -43,51 +43,74 @@ and then run packaging without `-PayloadOnly`. The scripts print absolute
 paths under `artifacts/package/local`. This output is for local verification.
 
 The test script writes synthetic fixtures and results below `artifacts/tests`.
-For an installed update test, use two installers built with `-IsolatedTest`
-and distinct versions on a fresh test profile. The test uses an ephemeral
-Ed25519 key in memory and an isolated per-user installation identity.
+After the Release build, run `.\scripts\test-desktop.ps1` on a Windows desktop for native controls and captures.
+For an installed rehearsal, restore installer tools and run the selected edition pair.
+The script embeds an ephemeral public key in a distinct test installation and signs its local fixture feed.
 
 ```powershell
-.\scripts\package.ps1 -Version 0.1.0 -IsolatedTest
-.\scripts\package.ps1 -Version 0.2.0 -IsolatedTest
-.\scripts\test.ps1 -OldInstaller $oldSetup -NewInstaller $newSetup
+.\scripts\rehearse-update.ps1 -OldFlavor core -NewFlavor core
+.\scripts\rehearse-update.ps1 -OldFlavor office -NewFlavor office
 pwsh -NoProfile -STA -File .\scripts\export-icon.ps1
 ```
 
-Set `$oldSetup` and `$newSetup` to the installer paths printed by the first
-two commands. The icon export regenerates the Windows ICO from the original
-editable SVG.
+Set `TABRILO_TEST_UPDATE_UI=1` on an interactive test desktop to drive both update consent dialogs and verify relaunch.
+Use `-OldFlavor office -NewFlavor core` for the separate explicit installer transition.
+The icon export regenerates the Windows ICO from the editable SVG.
 
 ## First run
 
-Choose files, drop them into Home, or paste an image or file selection
-explicitly. Available actions depend on the input types. Ctrl+Space opens the
-keyboard action wheel. The default Explorer wheel gesture is Shift while
-dragging. Settings displays the current bindings and wheel preferences.
+With Tabrilo running, drag files in Explorer and tap a mode key. Shift shows
+formats, Ctrl shows relevant tools, and Alt shows Share, Float, Copy, Move,
+Copy Path and Terminal. Release the key and drop on a slice. Releasing over
+the center, a gap, or outside cancels the wheel. Escape cancels the held drag.
+Ctrl+Space opens the keyboard wheel for Home’s selection. Use arrows and Enter.
+Closing Home keeps the app in the notification area when tray mode is enabled.
+Choose **Quit Tabrilo** from its tray menu before launching another build.
 
-Choose an export folder when prompted. Result lists show the actual paths.
-Redaction exports lossless PNG. Select opaque regions on the original, then
-use Preview result before copying or exporting. To check redaction end to
-end, paste the copy into another program and inspect both the pasted result
-and the saved PNG.
+Conversions write beside each source. JPG uses a white background and quality
+88 by default. PDF pages render at 150 DPI. Multiple pages or split parts go
+into a new sibling folder. Combined images use full-path order and ask for
+a destination when their parents differ. Jobs is available on request.
+
+DOCX and PPTX render with a local LibreOffice engine. Configure its
+`soffice.com` in Settings or package with `-IncludeOffice` using the pinned
+MSI in `.tools`. This optional development payload includes the engine.
+Editable PDF-to-Office reconstruction and public distribution remain open.
+
+In Redact, drag to draw a mask, drag the mask to move it, or drag a corner to
+resize it. Use Delete to remove the selected region. Copy result processes the
+current edits. Paste into another program and compare it with the lossless PNG
+from Save copy. Development builds show their version and commit in the title.
 
 ## Distribution and updates
 
 The Windows installer stages each version under the current user's Programs
 folder. Settings and history live in LocalAppData outside that folder.
-Applications built from the current checkout display an unconfigured update
-channel. Windows x64 updates require signed appcasts and installers.
+Rerun the identical installer to verify the payload and restore missing files. Setup reports a conflict
+if that displayed version has different bits or a different component selection. To switch between
+core and Office, uninstall first or install a newer version. Newer versions use separate folders.
+Each version's receipt controls uninstall. Modified or unrelated files are preserved.
+Run `./scripts/test-installer.ps1` after restoring installer tools to exercise these transitions
+with a small synthetic component and a fresh per-user test identity.
+Review builds identify their version, edition, channel and source revision in the title.
+Setup basenames identify the edition. Run `.\scripts\inspect-package.ps1 -Installer $setup` with the
+printed installer path to verify the payload receipt, self-check and checksum and emit a neighboring `review.json`.
+Review builds have an unconfigured feed. Migrate from 0.1.3 manually with the newer installer of the desired edition.
 
-GitHub Actions builds and tests Windows from a clean checkout. On main it also
-checks an unsigned self-contained payload on the runner. Desktop interaction
-and installed-updater acceptance require separate native sessions. Release
-publication is inactive. Production signing, feed configuration and binary
-redistribution still require review and owner approval.
+Windows CI builds and tests PRs. A manual dispatch exercises installed core → core, Office → Office
+and an explicit Office → core switch on separate Windows runners. See STATUS for run results.
+Packages stay local pending the component-specific gates in `packaging/materials.json`.
+Pass the two absolute Setup paths to `.\scripts\prepare-release.ps1 -CoreInstaller $core -OfficeInstaller $office`
+to inspect both packages and produce a local promotion manifest. No credentials are required for this step.
+Run `.\scripts\restore-office-materials.ps1 -External` for the pinned LibreOffice source and external build inputs.
+Use `.\scripts\inspect-office-materials.ps1 -OfficeDirectory $officeDirectory` on the payload's `tools/office` folder
+to reconcile its files with the upstream MSI and index the bundled license sections.
+On a VS 2026 x64 C++ build machine, `.\scripts\relink-magick.ps1` rebuilds the HEIC delegate and verifies a decode.
 
-## macOS foundation
+## macOS build
 
-`sh apps/macos/build.sh` describes the build entry on a Mac with Xcode Command
-Line Tools. The AppKit shell and catalog loading await a Mac build. See
+`sh apps/macos/build.sh` builds the native bundle on a Mac with Xcode Command
+Line Tools. The bundle uses AppKit, Core Graphics and Image I/O. Finder acceptance requires a Mac desktop. See
 [STATUS.md](STATUS.md) for the Mac handoff.
 
 ## Licensing and specification

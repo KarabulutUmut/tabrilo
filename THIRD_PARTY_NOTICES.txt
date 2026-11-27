@@ -15,9 +15,20 @@ PDFsharp 6.2.4, copyright empira Software GmbH, MIT. It includes the public-doma
 BigGustave PNG reader. SharpCompress 0.50.9, copyright Adam Hathcock, MIT.
 ZXing.Net 0.16.11 and ZXing are licensed under Apache-2.0.
 NetSparkleUpdater 3.1.0, MIT, uses Chaos.NaCl. See the upstream NaCl license.
+BouncyCastle.Cryptography 2.7.0, copyright 2000-2026 The Legion of the Bouncy
+Castle Inc., MIT. Its complete license accompanies both editions.
 qpdf 12.4.2, copyright Jay Berkenbilt and Manfred Holger, Apache-2.0.
 The vendor's Windows distribution includes Microsoft C/C++ runtime binaries.
 NSIS 3.13 installer code uses the licenses supplied in the NSIS COPYING file.
 The published self-contained .NET Desktop 10.0.15 runtime includes Microsoft and
 third-party components. See the upstream runtime license and third-party notices.
 Windows.Data.Pdf is a system component supplied by Windows.
+Vortice.Direct3D11, DirectX and DXGI 3.8.3 and Vortice.Mathematics 2.1.0
+provide managed bindings to Windows graphics APIs. SharpGen.Runtime and
+SharpGen.Runtime.COM 2.4.2-beta are the locked dependencies of those bindings.
+The three upstream MIT license texts accompany both editions.
+
+Optional local Office builds include LibreOffice 26.8.3 by The Document Foundation.
+See tools/office/license.txt, LICENSE.html, NOTICE and CREDITS.fodt for the
+MPL-2.0 and bundled component terms. Review source availability and redistribution
+obligations before distributing this development build.
