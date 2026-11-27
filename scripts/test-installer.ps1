@@ -35,7 +35,16 @@ $office = BuildFixture 'office' '1.0.0' $true
 $upgrade = BuildFixture 'next' '1.0.1' $false
 $v1 = Join-Path $install 'versions/1.0.0'
 $v2 = Join-Path $install 'versions/1.0.1'
+# Recreate the durable state at the publication/registration boundary. An incomplete
+# tree must be refused. A complete, matching tree can finish registration on retry.
+$null = New-Item -ItemType Directory -Path (Split-Path $v1)
+Copy-Item -LiteralPath "$work/core/payload" -Destination $v1 -Recurse
+Remove-Item -LiteralPath "$v1/licenses/NSIS-COPYING.txt"
+RunSetup $core 2
+Require (!(Test-Path "HKCU:/Software/$kind/Versions")) 'Incomplete installation was registered.'
+Copy-Item -LiteralPath "$work/core/payload/licenses/NSIS-COPYING.txt" -Destination "$v1/licenses"
 RunSetup $core
+Require (Test-Path "$v1/Uninstall.exe") 'Retry failed to complete interrupted registration.'
 RunSetup $office 2
 RunSetup $changed 2
 Require ((Get-Content "$v1/Tabrilo.exe") -eq 'core' -and !(Test-Path "$v1/tools/office")) 'Unexpected core component change.'
@@ -59,4 +68,4 @@ Require (!(Test-Path "$v1/tools/office/sample") -and !(Test-Path "$v1/Tabrilo.ex
 # Remove just our synthetic marker and its now-empty parents.
 Remove-Item -LiteralPath "$v1/keep.txt"
 foreach ($dir in $v1, (Split-Path $v1), $install) { [IO.Directory]::Delete($dir) }
-Write-Output "PASS component transitions, changed bits, identical reinstall, blocked and successful repair, upgrade and uninstall. $work"
+Write-Output "PASS interrupted registration recovery, component transitions, changed bits, identical reinstall, blocked and successful repair, upgrade and uninstall. $work"
