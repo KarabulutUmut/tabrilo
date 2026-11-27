@@ -7,7 +7,7 @@ Identity: Tabrilo. Tagline: **Your files. Ready to share.**
 
 An independent, local desktop toolkit for images, PDFs, and safe archive extraction.
 Native Windows and macOS applications should have equivalent commands, outcomes, layouts, and configurable shortcuts.
-Windows is the first full implementation. macOS requires a subsequent real Mac build and validation run.
+Windows is the acceptance baseline. Complete the native AppKit implementation and Finder validation on the MacBook after merge.
 All declared file operations must work offline after normal installation; no accounts or developer runtimes for end users.
 Only opted-in update checks/downloads and explicitly confirmed external links may use the network.
 
@@ -120,8 +120,10 @@ From the top clockwise, Actions contains Share, Float, Copy, Move, Copy Path and
 Float holds up to 64 temporary references. Only the explicit Move action changes the source location.
 Move rejects self and descendant destinations. Report each completed, skipped or failed item.
 An interrupted native transfer identifies both locations for inspection before retry.
+Cancel interrupts an active file transfer. For folders, Stop prevents queued transfers and the Windows transfer dialog cancels the active folder.
 Shift offers JPG/PNG and PDF for still images, and PNG/JPG for PDF pages. Omit same-format targets.
 DOCX/PPTX offer PDF and page images with a configured local layout engine. Editable PDF reconstruction remains outstanding.
+PDF and Office page exports preserve document colors regardless of desktop theme or high contrast.
 Several images form one PDF in deterministic path order. Several PDF exports use separate source-adjacent folders.
 Compress, extract, QR and default conversion run directly. Display compact cancellable progress and completion.
 Open a focused editor when an operation needs selection, configuration, or preview.
@@ -152,6 +154,7 @@ All advertised operations must produce real independently readable files; no pla
 Input hashes, export validity, redaction properties, archive containment, QR behavior, and PDF preservation require evidence.
 The wheel must work with real Explorer/Finder drags on the claimed platform, not solely inside the app window.
 Installer/uninstaller behavior, offline processing, missing-dependency handling, and signed updates require end-to-end tests.
-An update must preserve settings/history preferences, reject tampering, and handle interruption safely.
+Automatic updates must preserve edition, settings, history and exports. Core stays core and Office stays Office.
+A deliberate edition change uses a newer installer. Rejected, interrupted and incompatible updates retain the prior installation.
 Publish only the OS/architecture/format combinations actually validated. Mac source or CI compilation alone is not Mac desktop validation.
 Do not reduce scope silently. Any incomplete requirement remains an explicit blocker in STATUS.md and the final report.

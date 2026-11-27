@@ -1,82 +1,77 @@
-# Tabrilo current status
+# Tabrilo Windows review status
 
-Windows development build 0.1.3 is available for owner review on [draft PR #8](https://github.com/KarabulutUmut/tabrilo/pull/8).
-The local core and Office packages were built from `84d05c33d3f17c368b9e553293b70bd0f5892ec0`.
-On Windows 10 x64 build 19045 with .NET SDK 10.0.404, both packaged self-checks passed.
-The final locked Release build had zero warnings and errors. Its 20/20 test groups included the actual Office engine and owner PDF.
+Windows 0.2.0 review packages come from `ff2c490391384158a15bdd1a9694541c8728a1bb` on [draft PR #8](https://github.com/KarabulutUmut/tabrilo/pull/8).
+The later `59f3942` commit changes the test harness, component-audit tooling and receipts. The final handoff commit changes only the six project documents.
+Both are per-user, self-contained Windows x64 builds for OS build 19041 or newer. The local channel has no production feed.
+Testing used Windows 10 Home 22H2 build 19045.6466, PowerShell 7.6.9, SDK 10.0.404 and separate fresh hosted Windows runners.
 
-## Explorer and Move — verified with evidence
+## Review packages
 
-On 0.1.2, releasing over a second Explorer folder moved the PNG. On repaired 0.1.3, the owner
-released Shift before dropping over real folders on the same display and across two displays.
-The original hash stayed in Source and the destination received no file. Center, gap and physical
-Esc cancelled. Leaving while held, returning to JPG and releasing produced one neighboring JPEG.
-An immediate new drag worked. Earlier native evidence covers Shift/Ctrl/Alt switching and external Copy/Copy Path.
-The owner tried Share with Home closed, cancelled the sheet, dragged a file from Float to Explorer,
-and opened Terminal in the source directory. A second Terminal check confirmed the publisher prompt was gone.
-A real Move collision preserved both files. The prior picker-cancel check is in `three-wheel-move-cancel.log`.
-The 0.1.2 binary threw on a cyclic Move. Native tests now cover self/child rejection, collisions, Unicode,
-missing paths, successful file/folder moves and a cancelled batch that reports its completed item.
-Physical checks used the 0.1.3 core builds with their respective UI fixes. On the final archive-only revision,
-a fresh Home → JPG smoke test produced a 10,214-byte JPEG (1275 × 1650) and preserved the PNG hash.
+| Edition | Local build ID | Installer bytes | Unpacked file bytes | Isolated installed file bytes including uninstaller |
+| --- | --- | ---: | ---: | ---: |
+| Core | `20261127-181131-8186927f` | 100,492,297 | 254,261,762 | 254,324,726 |
+| Office | `20261127-181214-62588332` | 615,288,263 | 1,860,777,313 | 1,860,840,276 |
 
-## Archive ownership — verified with evidence
+Start `payload/Tabrilo.exe` in the corresponding directory under `artifacts/package/local/0.2.0`.
+Both receipts, installer checksums and packaged self-checks passed. The paired manifest is
+`artifacts/promotion/ff2c490391384158a15bdd1a9694541c8728a1bb/windows-review.json`.
+It gives exact executable and Setup paths, SHA-256 digests, identities, sizes and release-note inputs.
 
-Extraction holds the stage root through publication. Rollback checks identity and preserves entries with
-uncertain ownership. Native tests cover staging replacement, collisions, open readers, interrupted publication
-and unrelated markers. A further 160 ZIP, TAR, GZIP and TGZ publications succeeded.
-The authenticated main alert #1 remains open at `984ea4b3`. Its 20-step trace follows a ZIP entry to
-a pathname-based stream. The PR merge analysis for application commit `84d05c33` reported zero results.
-Earlier PR analyses also reported zero. Native regressions provide the evidence for the ownership repair.
+## Windows verification matrix
 
-## PDFs and Office — verified with evidence
+| Area | Status and executed evidence |
+| --- | --- |
+| Routing and publication | Verified with evidence. Typed command registry, three modes, compatible formats, source-adjacent exports, collision-safe siblings, original hashes, cancellation and partial batches passed. |
+| Images | Verified with evidence. Required still-image codecs, HEIF fixture, JPEG alpha, orientation, edits/marks/framing, secure PNG masks and transformed coordinates passed. WIC and Pillow independently decoded outputs. |
+| PDF | Verified with evidence. Native page render, metadata full rewrite, guarded page assembly, links/destinations and both compression modes passed. PDFium matched all nine owner split pages in text, geometry and pixels. |
+| QR and archives | Verified with evidence. Multiple QR locations, ZIP/TAR/GZIP/TGZ/RAR, streamed limits, stage/rollback ownership, collision and input preservation passed. Additional native archive stress covered 160 publications. |
+| Office | Verified with evidence. Private offline LibreOffice 26.8.3.1 rendered two-page DOCX/PPTX with tables, embedded imagery and a missing title font. Page two had distinct text and pixels. External links failed safely. |
+| Real Explorer | Verified with evidence. Owner completed outside/center/gap/Esc and mode switching on 0.2.0. Automated Explorer on the packaged revision repeated five drags. Source SHA-256 stayed fixed, Receiving stayed empty and returning to JPG wrote one adjacent 100 × 70 JPEG. |
+| Universal actions | Verified with evidence. Earlier physical Share/cancel, Float drag-out, Explorer file-reference paste, exact Unicode paths in Notepad and Terminal working directory checks are retained. |
+| Move | Verified with evidence. Distinct volume GUIDs, file/folder success, collision, pre-cancel, in-flight file cancel, partial counts and safe retry. Cancelling the real Windows folder transfer left 3,748 source and 252 destination files in one run. All 4,000 hashes passed after retry. |
+| Native UI and load | Verified with evidence. Real wheel captures, feedback, both Settings themes, 150% text, Edit/Redact, PDF page previews, keyboard focus, monitor-edge containment and hosted system high contrast. Three fresh hosted processes preserved document colors and tile edges in high contrast and exited cleanly. |
+| External redaction paste | Verified with evidence. On `a9dd5f2`, Paint and Save copy produced 7,000 identical RGBA pixels including 425 opaque mask pixels. Independent PNG inspection found no metadata. The harness could not confirm restoration of the previous clipboard. |
+| Packages and upgrades | Verified with evidence. Both installed 0.1.99 apps accepted signed 0.2.0 upgrades of the same edition. A newer manually selected Office → core Setup also passed. Corrupt/truncated input preserved the old install. |
+| Update UI | Verified with evidence. Actual installed apps handled download/install consent and relaunched. History, settings and exports survived uninstall. The upgraded Office copy rendered both DOCX and PPTX offline. |
+| Security | Verified with evidence. Signed feed and installer, SHA-256, edition, origin, version/OS and PE identity checks. Main archive alert #1 is still open at `984ea4b3`. PR analysis and native rollback regressions are separate evidence. |
+| Hardware | Implemented/unverified on mixed-DPI or negative-coordinate layouts. Both attached displays reported 96 DPI and nonnegative origins. Edge placement passed on both. |
+| Editable PDF → DOCX/PPTX | Not started. Editable reconstruction remains explicit future scope. |
 
-Lossless final compression reduced the screenshot PDF from 1,039,492 to 5,464 bytes and the photo PDF
-from 6,914,695 to 3,938,235 bytes. PDFium rendered both pixel-identically to the old outputs.
-The runs took 137 ms and 2,085 ms respectively. Test-process peak working sets were 156 MB and 244 MB.
-Direct and indirect destination arrays and allowed links passed. Cycles, active actions and protected
-rewrites remain guarded. All nine owner PDF Split outputs matched source text, page geometry and pixels.
-PDFsharp remains at MIT 6.2.4. Page assembly discloses omitted tags/names and flattened bookmark hierarchy.
-The Office tests covered external relationship rejection, private profiles, queued cancellation and
-distinct text and rendered content on page two of both DOCX and PPTX. Complex layout remains unverified.
-
-## Per-user installation — verified with evidence
-
-The old installer accepted a same-version switch while omitting Office and left old Office files on uninstall.
-Setup now refuses changed bits or components at one version. An identical package verifies installed files,
-restores missing entries and reports modified files. Each version's receipt governs removal.
-Real isolated NSIS tests cover both component directions, interrupted registration, repair, upgrade and uninstall.
-
-| Local 0.1.3 package | Installer bytes | Unpacked payload bytes |
-| --- | ---: | ---: |
-| Core | 97,382,338 | 247,815,372 |
-| With Office | 612,178,409 | 1,854,330,921 |
-| Office increment | 514,796,071 | 1,606,515,549 |
-
-A fresh Windows runner installed the Office-equipped 0.1.2 test identity, rendered both Office fixtures
-and verified an isolated signed upgrade to core 0.1.3. Damaged and interrupted downloads preserved the
-prior install. Uninstall removed both versions while preserving settings and the export. All 19 groups passed.
-Installed file bytes including each version's uninstaller were 1,854,390,054 (Office) and 247,874,498 (core),
-a difference of 1,606,515,556 bytes. [Clean Windows run](https://github.com/KarabulutUmut/tabrilo/actions/runs/46005520619)
+The packaged core reached input-idle in 835 ms with an 82,321,408-byte working set.
+During 8 real encodes, 24 wheel openings took 46.9 ms median and 69.6 ms maximum. Cancellation took 29.5 ms.
+The desktop driver’s working set went from 272,613,376 to 264,306,688 bytes. The installed Office coordinator
+verified a 615,290,304-byte signed Setup. Both local installed suites, including consent, relaunch and uninstall, passed 21/21.
 
 ## Reproduce and inspect
 
-From native PowerShell 7 at the checkout root, set `TABRILO_TEST_OFFICE` to the full package's
-`payload/tools/office/program/soffice.com`, `TABRILO_TEST_PHOTO` to the test JPEG and `TABRILO_TEST_SPLIT_PDF` to the owner PDF.
-Run `pwsh -NoProfile -File scripts/test.ps1 -Configuration Release` and `pwsh -NoProfile -File scripts/check-manifests.ps1`.
-After restoring installer tools, run `pwsh -NoProfile -File scripts/test-installer.ps1` for the isolated component matrix.
-Use README for packaging commands. The local test and packaging commands exited 0.
+From native PowerShell 7 at the root, run `./scripts/check-manifests.ps1`, `./scripts/check-docs.ps1 -SelfTest`
+and `./scripts/test.ps1 -Configuration Release`. The configured Office/owner-fixture run passed 20/20 with zero build warnings.
+`./scripts/test-desktop.ps1` exercises visible WPF windows. README gives both installed rehearsal commands.
+External Windows UI Automation verified all six Home buttons, the feedback actions and four named, keyboard-focusable Settings selectors in the packaged core. See `verification/rc-desktop/final-accessibility.json`.
+The following evidence paths are relative to `artifacts/`. Private inputs and document contents stay off CI.
 
-Evidence under `artifacts/verification` includes `accepted-release.log`, `accepted-independent.json`,
-`accepted-core.json` and `accepted-office.json` (absolute executable/installer paths and hashes).
-`acceptance-probe/` holds native before/after results. `archive-stress.log`, `final-main-trace.json`,
-`final-installer-matrix.log` and `accepted-ci.log` cover publication, analysis and installation.
-The final test outputs are in `artifacts/tests/20261127-132301-4636`.
+- `verification/surface-candidate-tests.log`, `verification/final-independent.json` and `verification/archive-stress.log` cover processing, source preservation and archive ownership.
+- `verification/windows-capabilities.json` maps all 37 command IDs to their formats, Windows dispatch paths, acceptance criteria and evidence.
+- `verification/rc-desktop/final-explorer.json`, `final-wheel-*.png`, `final-clipboard.json` and `independent-clipboard.log` in that directory record the packaged UI. `tests/20261127-182531-24768/` contains controls, themes, editors and load measurements.
+- `verification/final-office-update-ui.log` and `verification/final-core-update-ui.log` cover the isolated interactive Office and core upgrades. `verification/final-hosted-*.log` records clean-runner results.
+- [Installed package jobs](https://github.com/KarabulutUmut/tabrilo/actions/runs/46047580810) include the actual upgrade sizes. [Hosted accessibility](https://github.com/KarabulutUmut/tabrilo/actions/runs/46047563114) includes native captures.
+
+## Redistribution and external release gates
+
+Each payload includes 21 locked package/runtime records, native file hashes, 38 codec entries, upstream notices and exact source manifests.
+The Office cache holds all four matching release archives and 153 upstream external inputs, verified at 1,549,304,918 bytes total.
+The MSI inventory matched 19,423 Office files across 5,985 components, plus its administrative MSI. Ten alternative ARM64 CRT rows share x64 target names. The report indexes 236 headings in the shipped license at `materials/libreoffice-26.8.3.1/windows-components.json`.
+`scripts/restore-office-materials.ps1 -External` rebuilds the cache. The upstream build-input superset includes optional components.
+For Magick, every PE section matched the vendor DLL. The hosted replacement build loaded its re-linked DLL by verified SHA-256 and decoded HEIC. See `verification/final-relink-result/verification.json`.
+Both editions' eight qpdf CRT DLLs matched Microsoft's signed 14.51.36247.0 x64 redistributable byte-for-byte. See `materials/vc145/verification.json`. Distributor entitlement remains an owner decision.
+Office's nine x86 and ten x64 CRT DLLs also matched Microsoft's signed 14.44.35211.0 bundles byte-for-byte. Their MSI, CAB and individual file hashes are in `packaging/verification/windows-0.2.0.json`.
+Public promotion requires approved corresponding-source delivery, material clearance, a clean approved commit, publisher credentials, timestamping and signed edition-specific feeds.
+The 0.1.3 development channel needs manual migration. Local build, merge and production publication are independent.
 
 ## Next actions
 
-1. Owner review of draft PR #8. The local owner guide includes the launch command and four short checks.
-2. Windows implemented/unverified on a second volume: outside drop and interrupted cross-volume directory Move. Only C: was mounted. Mixed-DPI, accessibility and sustained-load interaction also need native checks.
-3. Mac implementation: busy feedback or concurrent lightweight actions, result-specific Reveal, partial batches, background Move and metadata-format parity. Most contextual tools, Office, packaging and signed updates remain to implement.
-4. Mac validation: hosted macOS 15 AppKit build and PDF self-check passed. Use Finder to check valid destinations, Control/Option, permissions, external clipboard and multiple monitors, then test an installed old-to-new update.
-5. Public distribution is blocked pending source availability for the bundled LibreOffice MPL build, corresponding-source/relink review for bundled LGPL libraries, tested signed packages and owner-approved feeds.
+1. Owner accepts the Windows review on open PR #8. A mixed-DPI/negative-origin station remains a hardware coverage gap.
+2. For distribution, complete recipient-access and publisher decisions against the material manifests. Keep signing and publication gated.
+3. After merge, branch from the accepted `main` on the MacBook. Start in `apps/macos/Sources/main.swift`, `DragWheel.swift`, `MacExports.swift`, `FileShelf.swift` and `SelfCheck.swift`.
+4. Implement remaining AppKit editors, PDF/QR/archive/Office tools, background jobs/results, Move, packaging and edition-preserving Sparkle 2 updates against the shared contracts, tokens and fixtures.
+5. Run native Finder release/cancellation, Control/Option, VoiceOver, clipboard, multi-display, first launch and installed-update acceptance on the MacBook. The [hosted AppKit check](https://github.com/KarabulutUmut/tabrilo/actions/runs/46047563160) covered compilation and fixture exports.

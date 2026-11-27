@@ -148,18 +148,19 @@ Test interrupted/failed upgrades and recovery; do not invent a separate custom u
 
 ## Update trust and release pipeline
 
-Windows uses NetSparkle strict verification for feed and payload; macOS uses supported Sparkle feed/archive signature settings.
-Windows bounds transport and parses the signed appcast locally using NetSparkle's strict Ed25519 verifier.
-Use platform-specific signing keys and a pinned public trust anchor. Production private keys never enter source, logs, or packages.
-Development tests use ephemeral keys and isolated feeds. A test key must never become the production identity.
-Without production credentials, show a clear update-configuration state and fail the production publication gate.
-Do not disable verification or treat a SHA-256 checksum as publisher authenticity.
-Use HTTPS, constrained download origins/redirects, bounded downloads, version/OS/architecture checks, and anti-downgrade rules.
-Create separate feeds for Windows x64 and Mac architectures/channels, e.g. a GitHub Pages update directory.
-Do not use the repository-wide releases/latest asset as the sole feed: a release for one OS must not break another OS.
-Feed URLs remain unconfigured until hosting exists; do not present a missing feed as proof there are no updates.
-Automatic checks need a visible preference/disclosure. Installation requires a safe idle point and clear user consent.
-Update settings/history survive replacement. Validate successful replacement, restart, refusal, interruption, and failure recovery.
+NetSparkle Strict verifies the detached appcast. Bouncy Castle verifies its standard Ed25519 installer signature over a read-only file mapping to bound private memory.
+The signed enclosure binds Windows x64, channel, edition, minimum OS, version, length and SHA-256.
+Setup must also match the expected product, embedded edition and version under a read lock.
+The embedded capability contract bounds a download to 1 GiB, connection to 30 seconds, stalled reads to
+90 seconds and the transfer to two hours. Stream to a unique file and reserve 64 MiB beyond the advertised length.
+The opt-in startup and manual paths require download/install consent. Restart after successful idle installation.
+Core and Office have separate compatible targets. Isolated builds alone can read a local signed fixture feed.
+Production preparation checks an approved clean commit, stable identity, material gates, trust anchor and publisher signing.
+Local inspection emits a SHA-256 receipt report, exact identity, package sizes and release-note input.
+
+Sparkle 2 on macOS needs its own feed, key, installed replacement and relaunch tests for each supported edition.
+The MacBook work starts from the accepted merge and reuses the shared commands, geometry, output policy,
+synthetic Office/PDF fixtures and design tokens. AppKit source and hosted checks remain the native foundation.
 
 PRs and pushes to main run Windows build/test and the manual-build C# CodeQL analysis.
 Main can also build and self-check an unsigned payload in the runner workspace.
@@ -205,6 +206,8 @@ qpdf copies page content and annotations to a new document. A second structural 
 destinations onto retained page objects, disables removed targets, and rebuilds flat page bookmarks.
 The page editor discloses omitted document-level structures. Rewrites refuse signed and protected input.
 Forms, active actions, embedded files and unsupported layers have separate page-assembly guards.
+Windows.Data.Pdf renders through IPdfRendererNative to an application-owned Direct3D surface using Vortice bindings.
+The background worker checks cancellation between bounded tiles and releases its device before returning, including on WARP.
 
 Windows renders static DOCX/PPTX through a local LibreOffice profile with disabled macros and
 active content. The bounded worker rejects linked external resources, validates qpdf output and
@@ -217,7 +220,7 @@ Local scripts cover environment checks, builds, tests, packaging, documentation
 budgets, shared manifests and workflow validation. Real failures return nonzero.
 Keep unit/integration, adversarial, native-UI, and installed-update evidence distinguishable.
 Use synthetic fixtures and independent inspectors. Track unavailable tests as skipped/blocked, never passed.
-CI should compile/test Windows. Add Mac compilation/tests only when actual Mac targets exist; never use echo-success placeholders.
+Routine CI compiles WPF and AppKit and exercises their fixtures. A Windows dispatch installs both editions and rebuilds the native HEIC delegate.
 Do not let green shared-contract checks imply that unimplemented Mac features work.
 Build artifacts, screenshots, and logs are ignored locally or bounded CI artifacts; STATUS.md links the current evidence.
 Report the actual launch/package paths, last passing commands, remaining blockers, and exact next run.

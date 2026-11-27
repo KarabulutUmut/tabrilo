@@ -43,20 +43,19 @@ and then run packaging without `-PayloadOnly`. The scripts print absolute
 paths under `artifacts/package/local`. This output is for local verification.
 
 The test script writes synthetic fixtures and results below `artifacts/tests`.
-For an installed update test, use two installers built with `-IsolatedTest`
-and distinct versions on a fresh test profile. The test uses an ephemeral
-Ed25519 key in memory and an isolated per-user installation identity.
+After the Release build, run `.\scripts\test-desktop.ps1` on a Windows desktop for native controls and captures.
+For an installed rehearsal, restore installer tools and run the selected edition pair.
+The script embeds an ephemeral public key in a distinct test installation and signs its local fixture feed.
 
 ```powershell
-.\scripts\package.ps1 -Version 0.1.0 -IsolatedTest
-.\scripts\package.ps1 -Version 0.2.0 -IsolatedTest
-.\scripts\test.ps1 -OldInstaller $oldSetup -NewInstaller $newSetup
+.\scripts\rehearse-update.ps1 -OldFlavor core -NewFlavor core
+.\scripts\rehearse-update.ps1 -OldFlavor office -NewFlavor office
 pwsh -NoProfile -STA -File .\scripts\export-icon.ps1
 ```
 
-Set `$oldSetup` and `$newSetup` to the installer paths printed by the first
-two commands. The icon export regenerates the Windows ICO from the original
-editable SVG.
+Set `TABRILO_TEST_UPDATE_UI=1` on an interactive test desktop to drive both update consent dialogs and verify relaunch.
+Use `-OldFlavor office -NewFlavor core` for the separate explicit installer transition.
+The icon export regenerates the Windows ICO from the editable SVG.
 
 ## First run
 
@@ -93,14 +92,20 @@ core and Office, uninstall first or install a newer version. Newer versions use 
 Each version's receipt controls uninstall. Modified or unrelated files are preserved.
 Run `./scripts/test-installer.ps1` after restoring installer tools to exercise these transitions
 with a small synthetic component and a fresh per-user test identity.
-Applications built from the current checkout display an unconfigured update
-channel. Windows x64 updates require signed appcasts and installers.
+Review builds identify their version, edition, channel and source revision in the title.
+Setup basenames identify the edition. Run `.\scripts\inspect-package.ps1 -Installer $setup` with the
+printed installer path to verify the payload receipt, self-check and checksum and emit a neighboring `review.json`.
+Review builds have an unconfigured feed. Migrate from 0.1.3 manually with the newer installer of the desired edition.
 
-GitHub Actions builds and tests Windows from a clean checkout. On main it also
-checks an unsigned self-contained payload. Manually dispatch Windows CI for a clean Office installation,
-document conversions and a signed isolated upgrade to core. Explorer gestures require a desktop. Release
-publication is inactive. Production signing, feed configuration and binary
-redistribution still require review and owner approval.
+Windows CI builds and tests PRs. A manual dispatch exercises installed core → core, Office → Office
+and an explicit Office → core switch on separate Windows runners. See STATUS for run results.
+Packages stay local pending the component-specific gates in `packaging/materials.json`.
+Pass the two absolute Setup paths to `.\scripts\prepare-release.ps1 -CoreInstaller $core -OfficeInstaller $office`
+to inspect both packages and produce a local promotion manifest. No credentials are required for this step.
+Run `.\scripts\restore-office-materials.ps1 -External` for the pinned LibreOffice source and external build inputs.
+Use `.\scripts\inspect-office-materials.ps1 -OfficeDirectory $officeDirectory` on the payload's `tools/office` folder
+to reconcile its files with the upstream MSI and index the bundled license sections.
+On a VS 2026 x64 C++ build machine, `.\scripts\relink-magick.ps1` rebuilds the HEIC delegate and verifies a decode.
 
 ## macOS build
 

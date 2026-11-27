@@ -2,7 +2,7 @@
 
 ## Mission and boundaries
 
-Build the complete scoped Windows v1, then the native macOS counterpart. This is not a throwaway prototype.
+Bring Windows through owner acceptance, then continue native macOS work on the MacBook from the merged baseline.
 Use C#/.NET 10/WPF on Windows and Swift/AppKit on macOS. Do not substitute a web UI or cross-platform UI framework.
 Write original application code and assets from this specification and primary dependency/platform documentation.
 Do not fetch, clone, translate, rebrand, or copy a reference application's source, tests, assets, docs, or update identity.
@@ -67,7 +67,8 @@ Archive extraction must enforce on-disk containment and streamed resource limits
 PDF metadata removal must not leave previous incremental metadata revisions in the output.
 Keep passwords and signing keys out of source, logs, process arguments, app bundles, and public CI artifacts.
 Never bypass updater verification, even when production signing credentials are absent.
-Use ephemeral test keys only in an isolated test channel; no production key generation or credential upload without approval.
+Use ephemeral test keys only in an isolated test channel. Exercise both installed edition-preserving updates.
+A deliberate edition switch has its own test. Production key generation and credential upload require owner approval.
 
 ## Git and release discipline
 

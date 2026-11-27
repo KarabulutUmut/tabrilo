@@ -74,7 +74,8 @@ The center and gaps are neutral. Once acquired, release outside a slice cancels 
 An outside release leaves the source in place and the receiving folder untouched.
 Returning while still holding the button is valid. Modifier release changes nothing. Escape latches cancellation.
 Keyboard mode exposes labeled actions, mode switching, focus navigation and Enter.
-Use small nonactivating progress and completion feedback with Cancel or Reveal. Jobs opens on request.
+Keep progress and completion on the invocation monitor, including negative desktop coordinates. Jobs opens on request.
+For Move, offer Cancel for files. For a folder, distinguish Stop queued items from Cancel in the active Windows transfer dialog.
 Open the editor only when the action needs selection, configuration, or preview.
 Wheel navigation supports arrows, Tab, Enter, and Escape. Label all actions for accessibility.
 Test edge positioning, multi-monitor coordinates, mixed DPI, focus restoration, interrupted drags, and repeat invocations.
@@ -120,7 +121,8 @@ Make tray behavior visible. Launch at login is opt-in. Distinguish closing Home 
 ## Accessibility and visual verification
 
 Support keyboard-only operation, screen-reader labels, visible focus, reduced motion, system scale, and high-contrast needs.
+WPF reads Windows text scale and uses system colors in high contrast. Keep wheel focus and selected sectors visible in each mode.
 Do not rely on hover-only actions or color alone. Animate briefly and respect reduced-motion settings.
 Check both light/dark themes, empty/loading/error states, long filenames, narrow windows, and 100/125/150/200% scale.
 Review screenshots from the actual native Windows app; source layouts or mock images are not runtime evidence.
-Later repeat the same scenarios on macOS. Shared design does not remove the need for platform-specific accessibility testing.
+On the MacBook, repeat the same scenarios with VoiceOver, Finder, Control/Option switching and real screen captures. Shared design does not remove the need for platform-specific accessibility testing.
