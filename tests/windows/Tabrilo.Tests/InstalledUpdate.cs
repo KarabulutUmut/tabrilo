@@ -51,6 +51,7 @@ internal static class InstalledUpdate
             Require(File.Exists(original) && File.Exists(Path.Combine(Path.GetDirectoryName(original)!, "hostfxr.dll")),
                 "per-user old installation with the self-contained runtime");
             var installedFolder = Path.GetDirectoryName(original)!;
+            ReportSize(oldInstaller, installedFolder);
             var engine = Path.Combine(installedFolder, "tools", "office", "program", "soffice.com");
             if (File.Exists(engine))
             {
@@ -101,6 +102,7 @@ internal static class InstalledUpdate
                 finally { File.Delete(setup); }
             }
             var upgraded = InstalledExe(newVersion);
+            ReportSize(newInstaller, Path.GetDirectoryName(upgraded)!);
             Require(File.Exists(upgraded) && InstallerVersion(upgraded) == newVersion, "installed signed upgrade");
             var qpdf = Path.Combine(Path.GetDirectoryName(upgraded)!, "tools", "qpdf", "qpdf.exe");
             await Run(qpdf, "--version");
@@ -135,6 +137,12 @@ internal static class InstalledUpdate
     }
 
     private static string InstalledExe(Version version) => Path.Combine(Install, "versions", version.ToString(3), "Tabrilo.exe");
+
+    private static void ReportSize(string installer, string folder)
+    {
+        var bytes = new DirectoryInfo(folder).EnumerateFiles("*", SearchOption.AllDirectories).Sum(file => file.Length);
+        Console.WriteLine($"Installed {InstallerVersion(installer)}: {bytes} file bytes including uninstaller. Setup: {new FileInfo(installer).Length} bytes.");
+    }
 
     private static async Task Run(string exe, string argument)
     {
