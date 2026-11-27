@@ -33,12 +33,15 @@ if (args is ["--folder-transfer", var volumeRoot])
     return 0;
 }
 var qpdf = Path.Combine(repository, ".tools", "qpdf", "qpdf-12.4.2-msvc64", "bin", "qpdf.exe");
-if (args is ["--relinked-heic", var heicPath])
+if (args is ["--relinked-heic", var heicPath, var rebuiltDigest])
 {
     var result = await Images.ProcessAsync(heicPath, new(ImageFormat.Png), default);
     if (result.Width != 451 || result.Height != 461) throw new IOException("Replacement HEIC decoder returned the wrong dimensions.");
     var output = await Images.SaveAsync(result, evidence, "decoded", default);
     if (Decode(output).PixelWidth != 451) throw new IOException("Independent PNG decode failed.");
+    var loaded = Process.GetCurrentProcess().Modules.Cast<ProcessModule>().Single(module =>
+        string.Equals(module.ModuleName, "Magick.Native-Q8-x64.dll", StringComparison.OrdinalIgnoreCase));
+    if (Hash(loaded.FileName) != rebuiltDigest) throw new IOException("The test process loaded a different native DLL.");
     return 0;
 }
 Console.WriteLine($"Evidence directory {evidence}");

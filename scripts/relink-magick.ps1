@@ -52,12 +52,15 @@ try {
 $dll = Get-Item -LiteralPath "$native/src/Magick.Native/bin/ReleaseQ8/x64/Magick.Native-Q8-x64.dll"
 if (![Text.Encoding]::Latin1.GetString([IO.File]::ReadAllBytes($dll.FullName)).Contains('-tabrilo-relink-check')) { throw 'Linked replacement marker missing.' }
 $driver = Join-Path $work 'driver'
+& "$PSScriptRoot/restore-tools.ps1"
+if ($LASTEXITCODE) { throw 'Could not restore the test driver dependencies.' }
 Invoke-TabriloDotnet @('restore',$TabriloProjects.Solution,'--locked-mode')
 Invoke-TabriloDotnet @('build',$TabriloProjects.Tests,'-c','Release','--no-restore','-o',$driver)
 $target = @(Get-ChildItem -LiteralPath $driver -Recurse -Filter 'Magick.Native-Q8-x64.dll' -File)
 if ($target.Count -ne 1) { throw 'Expected one native DLL in the standalone test driver.' }
 Copy-Item -LiteralPath $dll.FullName -Destination $target[0].FullName -Force
-Invoke-TabriloDotnet @("$driver/Tabrilo.Tests.dll",'--relinked-heic',"$TabriloRoot/tests/fixtures/color.heic")
+$digest = (Get-FileHash $dll.FullName).Hash
+Invoke-TabriloDotnet @("$driver/Tabrilo.Tests.dll",'--relinked-heic',"$TabriloRoot/tests/fixtures/color.heic",$digest)
 [ordered]@{nativeSource=$info.commit;replacementSource=$de265.revision;sha256=(Get-FileHash $dll.FullName).Hash;
     replacementMarker=$true;heicDecode=$true} | ConvertTo-Json | Set-Content -LiteralPath "$work/verification.json"
 Write-Output "Replacement and HEIC decode verified at $work."
