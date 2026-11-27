@@ -133,15 +133,6 @@ public sealed class DesktopAcceptance(string picture, string document, string ev
             quit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await System.Windows.Threading.Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             if (Windows.OfType<Window>().Any(window => window.IsVisible)) throw new IOException("A test window remained open after Quit.");
-            if (Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "github-hosted")
-            {
-                using var process = Process.GetCurrentProcess();
-                var modules = process.Modules.Cast<ProcessModule>().Select(module => new
-                {
-                    name = module.ModuleName, address = module.BaseAddress.ToInt64(), size = module.ModuleMemorySize
-                });
-                File.WriteAllText(Path.Combine(evidence, "modules.json"), JsonSerializer.Serialize(modules));
-            }
             Console.WriteLine("Visible WPF windows, focus, real rendering, bounded load and native Quit passed. " + evidence);
             Shutdown(0);
         }
@@ -200,7 +191,8 @@ public sealed class DesktopAcceptance(string picture, string document, string ev
     {
         await System.Windows.Threading.Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
         if (!window.IsVisible || PresentationSource.FromVisual(window) is null) throw new IOException("Expected a visible native window.");
-        var visual = (FrameworkElement)window.Content;
+        // Capture the whole WPF client, including layout margins around its content.
+        var visual = (FrameworkElement)VisualTreeHelper.GetChild(window, 0);
         var bitmap = new RenderTargetBitmap((int)Math.Ceiling(visual.ActualWidth), (int)Math.Ceiling(visual.ActualHeight),
             96, 96, PixelFormats.Pbgra32);
         var background = new DrawingVisual();

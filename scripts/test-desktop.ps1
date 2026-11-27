@@ -9,11 +9,6 @@ if ($HostedHighContrast -and ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENV
     throw 'High-contrast switching is confined to a disposable GitHub-hosted runner.'
 }
 if ($HostedHighContrast) {
-    $dumpFolder = (New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/TabriloDesktopCrash").FullName
-    $dumpPolicy = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\Tabrilo.DesktopTests.exe'
-    $null = New-Item -Path $dumpPolicy -Force
-    $null = New-ItemProperty $dumpPolicy -Name DumpFolder -Value $dumpFolder -PropertyType ExpandString -Force
-    $null = New-ItemProperty $dumpPolicy -Name DumpType -Value 1 -PropertyType DWord -Force
     Add-Type @'
 using System;
 using System.Runtime.InteropServices;
@@ -45,26 +40,11 @@ try {
     if ($HostedHighContrast) {
         $events = Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=$started; Id=1000,1001,1026} -ErrorAction SilentlyContinue
         $events | Select-Object -First 6 TimeCreated,ProviderName,Message | Format-List | Out-Host
-        $dump = Get-ChildItem -LiteralPath $dumpFolder -Filter '*.dmp' | Select-Object -First 1
-        if ($dump) { & "$PSScriptRoot/inspect-desktop-crash.ps1" -Dump $dump.FullName }
-        else { & "$PSScriptRoot/inspect-desktop-crash.ps1" -Image $imagePath -Document $pdf }
-        $inventory = Get-ChildItem "$TabriloRoot/artifacts/tests/*/modules.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if ($inventory) {
-            $modules = Get-Content -Raw $inventory.FullName | ConvertFrom-Json
-            foreach ($event in $events) {
-                if ($event.Message -match 'exception address ([0-9A-Fa-f]+)') {
-                    $address = [Convert]::ToInt64($Matches[1],16)
-                    foreach ($module in $modules) {
-                        if ($address -ge $module.address -and $address -lt ($module.address + $module.size)) {
-                            Write-Host ('Exception in {0}+0x{1:X}' -f $module.name,($address-$module.address))
-                        }
-                    }
-                }
-            }
+        if (($events.Message -join ' ') -match 'c000000d') {
+            & "$PSScriptRoot/inspect-desktop-crash.ps1" -Image $imagePath -Document $pdf
         }
     }
     throw
 } finally {
     if ($HostedHighContrast -and ![DesktopContrast]::Parameters(0x43, $original.Size, [ref]$original, 2)) { throw 'Could not restore hosted contrast.' }
-    if ($HostedHighContrast) { Remove-Item -LiteralPath $dumpPolicy }
 }

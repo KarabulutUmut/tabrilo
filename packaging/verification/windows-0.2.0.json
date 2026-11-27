@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "a9dd5f2edd541ecf025af62526d7d321e3872393",
+  "sourceCommit": "ff2c490391384158a15bdd1a9694541c8728a1bb",
   "channel": "local",
   "windows": "x64",
   "version": "0.2.0",
@@ -67,7 +67,7 @@
   "libreOffice": {
     "version": "26.8.3.1",
     "upstreamMsiSHA256": "0e6918c273eabbdbbd800ee0dacbbf130a14c13c2e4cec861b06dd59e015bf94",
-    "administrativeMsiSHA256": "5671AD2E5EADC119CE76A219AE15688E22DF1FF94A0D21864E8BBE7C27F181CC",
+    "administrativeMsiSHA256": "1406885328D13654216AFAADF0AF7502B845A844BED2591082B5884AE40A33A4",
     "shippedOfficeFiles": 19424,
     "matchedMsiFiles": 19423,
     "alternateArm64Rows": 10,
@@ -77,11 +77,223 @@
     "verifiedArchiveBytes": 1549304918,
     "filesOutsideMsiInventory": [
       "LibreOffice_26.8.3.msi"
-    ]
+    ],
+    "microsoftRuntime": {
+      "version": "14.44.35211.0",
+      "terms": "https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution",
+      "files": [
+        {
+          "file": "System/concrt140.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x014C",
+          "sha256": "A2B04C69868B08A600518EBBAD1661D38DE4DD0E0A8E638C22D4641D410E50B1",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "concrt140.dll_x86"
+        },
+        {
+          "file": "System/msvcp140_1.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x014C",
+          "sha256": "01A58552686D0C6B9FD67A7AC81169FC0013AEDF59A8EFDC611F94907489A31C",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "msvcp140_1.dll_x86"
+        },
+        {
+          "file": "System/msvcp140_2.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x014C",
+          "sha256": "2A5365E03CC6E78B408DFCA81537F3734BF3D7CF9CC13AE33204DFBC641DBE43",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "msvcp140_2.dll_x86"
+        },
+        {
+          "file": "System/msvcp140_atomic_wait.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x014C",
+          "sha256": "C4A2BAE74E008A5BB2445F9078C14DF9DCB03267248DFA64E7D04CDC8AF5208E",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "msvcp140_atomic_wait.dll_x86"
+        },
+        {
+          "file": "System/msvcp140_codecvt_ids.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x014C",
+          "sha256": "A5CBECFD9B8892EC9A60E30FEF7EF2158032C6D91EFDFBACA87C082BCD48BFA9",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "msvcp140_codecvt_ids.dll_x86"
+        },
+        {
+          "file": "System/msvcp140.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x014C",
+          "sha256": "97E71A3C697FB1AB3AF777DB39009E4602525E8C3AFF0837ECC7031CBA188165",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "msvcp140.dll_x86"
+        },
+        {
+          "file": "System/vccorlib140.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x014C",
+          "sha256": "89ED5A6877A87EC3EC9FE4A0FB14DC950599F0B67318E746084A0C333A6C865F",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "vccorlib140.dll_x86"
+        },
+        {
+          "file": "System/vcruntime140_threads.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x014C",
+          "sha256": "BB2B1D16187562376FC888059E2CBBF26C5404F6A4BB7197D1D01B970F199667",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "vcruntime140_threads.dll_x86"
+        },
+        {
+          "file": "System/vcruntime140.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x014C",
+          "sha256": "A9D7732A3C3DE09F0601A7FA2555093DCB49F08E2FC62A86091461F0F38393ED",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "vcruntime140.dll_x86"
+        },
+        {
+          "file": "System64/concrt140.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x8664",
+          "sha256": "2405355F0A58067B258F8DF33C327E3A3D716EAAC5A3A5AEBB757842D85BD376",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "concrt140.dll_amd64"
+        },
+        {
+          "file": "System64/msvcp140_1.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x8664",
+          "sha256": "BFAD5AEF4C63A669E3C140655CDFDF395B6C979B400A447BD5DCB65ED8826C3D",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "msvcp140_1.dll_amd64"
+        },
+        {
+          "file": "System64/msvcp140_2.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x8664",
+          "sha256": "3EA06F0EE098B4823CB79599DF3780E7F23CCE52C19AAC31D2A0D47EFE33A5E9",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "msvcp140_2.dll_amd64"
+        },
+        {
+          "file": "System64/msvcp140_atomic_wait.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x8664",
+          "sha256": "640B2AEFCED484D0368EEA5BDD06ADDD0658A3A70A49256E560D6923B404A479",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "msvcp140_atomic_wait.dll_amd64"
+        },
+        {
+          "file": "System64/msvcp140_codecvt_ids.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x8664",
+          "sha256": "F2069A52880EC885EE7F0511186100EB7FADA0411A2B4948FAFEA7735B878A18",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "msvcp140_codecvt_ids.dll_amd64"
+        },
+        {
+          "file": "System64/msvcp140.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x8664",
+          "sha256": "0F885B509A685D2BBFA652FED26B5FB31D88FBDAB0A978C641D1C7B8AA460AA9",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "msvcp140.dll_amd64"
+        },
+        {
+          "file": "System64/vccorlib140.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x8664",
+          "sha256": "19839407C3FDBC824E5BCE189BF68DDF8097F12EC28B757797FFA0415C144DDD",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "vccorlib140.dll_amd64"
+        },
+        {
+          "file": "System64/vcruntime140_1.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x8664",
+          "sha256": "1F2D41C4AA5DB0BC33EBF7B66D72943A817D7CE6CBE880502A9403823633093F",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "vcruntime140_1.dll_amd64"
+        },
+        {
+          "file": "System64/vcruntime140_threads.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x8664",
+          "sha256": "219915CF20822F34D5E7C1FDD4E21AE7F3396881096C51036225FB8F84B47AFA",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "vcruntime140_threads.dll_amd64"
+        },
+        {
+          "file": "System64/vcruntime140.dll",
+          "version": "14.44.35211.0",
+          "machine": "0x8664",
+          "sha256": "D5E4D9A3E835FA679450145D6A7D94E36573A509317111904D9B3712C30D9066",
+          "signer": "CN=Microsoft Windows Software Compatibility Publisher, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "signature": "Valid",
+          "packageEntry": "vcruntime140.dll_amd64"
+        }
+      ],
+      "verifiedMedia": [
+        {
+          "arch": "x86",
+          "origin": "https://download.visualstudio.microsoft.com/download/pr/73aabf2e-9532-4f68-99f7-3247081a619c/0C09F2611660441084CE0DF425C51C11E147E6447963C3690F97E0B25C55ED64/VC_redist.x86.exe",
+          "bundleSHA256": "0C09F2611660441084CE0DF425C51C11E147E6447963C3690F97E0B25C55ED64",
+          "minimumMsiSHA256": "C5FF4D6CD4BE9F4965F93AF273DD364948FBE44D40B123F34F82BCBCF64C8DF4",
+          "cabSHA256": "C9935322C0AF2FE00EBB018F8B0B908018576048FA4D3C0376A30EBF0EB2CF50",
+          "matched": 9
+        },
+        {
+          "arch": "x64",
+          "origin": "https://download.visualstudio.microsoft.com/download/pr/73aabf2e-9532-4f68-99f7-3247081a619c/CC0FF0EB1DC3F5188AE6300FAEF32BF5BEEBA4BDD6E8E445A9184072096B713B/VC_redist.x64.exe",
+          "bundleSHA256": "CC0FF0EB1DC3F5188AE6300FAEF32BF5BEEBA4BDD6E8E445A9184072096B713B",
+          "minimumMsiSHA256": "FE5AF8F2EFC9BBDD2C23F22F2D3DAF480A4047ACF3B1EDC6ECDA81147C1EC14F",
+          "cabSHA256": "640AA6C516C72444523B8FBE034DB46FF4E118ED02705340E3CCB62D426FF040",
+          "matched": 10
+        }
+      ]
+    },
+    "selectedMsiComponents": 5985
   },
   "externalConditions": [
     "Provide durable recipient access to corresponding LibreOffice and codec materials.",
     "Confirm Microsoft Visual Studio distributor entitlement and component terms.",
     "Approve actual stable inputs and real signing, timestamp and edition-specific feed configuration."
-  ]
+  ],
+  "reviewPackages": {
+    "core": {
+      "build": "20261127-181131-8186927f",
+      "installerSHA256": "BAEA5BCE5C1515454F9D5C384BE565C0A7C2C7DFF89F6888B63C11E69D6C3FCA",
+      "receiptSHA256": "1CE3D50A4492169855D08F043B23E7742E51CCC85DB511900406AAC95AFFA1A0",
+      "installerBytes": 100492297,
+      "payloadBytes": 254261762
+    },
+    "office": {
+      "build": "20261127-181214-62588332",
+      "installerSHA256": "CCC8DA079E9818136B96954C3A574AA870DB51EEB6A7DE1772CEA16C389B9A36",
+      "receiptSHA256": "882C2A909219A2778A59E7BEA576010F30779CEF2FC0C0CAFC9D97B4DF90C23F",
+      "installerBytes": 615288263,
+      "payloadBytes": 1860777313
+    }
+  }
 }
