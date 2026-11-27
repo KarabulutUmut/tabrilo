@@ -81,7 +81,7 @@ internal sealed class ExtractionStage : IDisposable
         finally { Marshal.FreeHGlobal(pointer); Marshal.FreeHGlobal(text); }
     }
 
-    public bool TryPublish(string leaf)
+    public async Task<bool> TryPublishAsync(string leaf, CancellationToken token)
     {
         OutputFiles.ValidateLeaf(leaf);
         var target = Path.Combine(folder, leaf);
@@ -101,18 +101,25 @@ internal sealed class ExtractionStage : IDisposable
             for (var i = entries.Count - 1; i > 0; i--) entries[i].Handle.Dispose();
             sealedForRename = true;
         }
-        if (WaitForSingleObject(changes!, 0) != 258)
-            throw new IOException("The destination changed while preparing to publish the extraction.");
-        // Rename the held root into its still-pinned parent without replacing any object.
-        if (!SetFileInformationByHandle(entries[0].Handle, 3, buffer, (uint)buffer.Length))
+        // A scanner or another reader may briefly hold a descendant after its writer
+        // closes. Retry the same handle and target while the watched namespace is stable.
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
         {
+            token.ThrowIfCancellationRequested();
+            if (WaitForSingleObject(changes!, 0) != 258)
+                throw new IOException("The destination changed while preparing to publish the extraction.");
+            if (SetFileInformationByHandle(entries[0].Handle, 3, buffer, (uint)buffer.Length))
+            {
+                published = true;
+                return true;
+            }
             var error = Marshal.GetLastWin32Error();
-            // NTFS may report ACCESS_DENIED when the existing target is a nonempty directory.
             if (error is 80 or 183 || error == 5 && Directory.Exists(target)) return false;
-            throw new IOException("Could not publish the extraction folder.", new Win32Exception(error));
+            if (error is not (5 or 32) || started.Elapsed >= TimeSpan.FromSeconds(2))
+                throw new IOException("Windows could not publish the extraction folder. Close any open entries and retry.", new Win32Exception(error));
+            await Task.Delay(40, token).ConfigureAwait(false);
         }
-        published = true;
-        return true;
     }
 
     public void Dispose()

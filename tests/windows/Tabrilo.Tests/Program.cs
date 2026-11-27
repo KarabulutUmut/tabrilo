@@ -362,7 +362,7 @@ async Task StageOwnership()
     stage.AddDirectory("nested", "", "nested");
     using (var file = stage.AddFile("nested", "owned")) file.WriteByte(1);
     await Expect<IOException>(() => Task.Run(() => Directory.Move(root, root + "-other")));
-    Require(!stage.TryPublish("existing"), "native no-replace collision");
+    Require(!await stage.TryPublishAsync("existing", default), "native no-replace collision");
     // A different object at the old name must survive rollback.
     var entry = Path.Combine(root, "nested", "owned");
     File.Move(entry, Path.Combine(folder, "retained"));
@@ -372,9 +372,27 @@ async Task StageOwnership()
     using (var cancelled = new ExtractionStage(folder, pin.Leaf))
     {
         using (cancelled.AddFile("", "partial")) { }
-        Require(!cancelled.TryPublish("existing"), "publication refused");
+        Require(!await cancelled.TryPublishAsync("existing", default), "publication refused");
     }
     Require(Directory.GetDirectories(folder).SequenceEqual([root]), "fully owned stage rolled back after publication failure");
+    using var retry = new ExtractionStage(folder, pin.Leaf);
+    using (retry.AddFile("", "result")) { }
+    Require(!await retry.TryPublishAsync("existing", default), "retry fixture sealed");
+    var staging = Directory.GetDirectories(folder).Single(path => path != root);
+    var reader = File.OpenRead(Path.Combine(staging, "result"));
+    Task<bool> retrying;
+    using (reader)
+    {
+        using var stop = new CancellationTokenSource();
+        var pending = retry.TryPublishAsync("ready", stop.Token);
+        Require(!pending.IsCompleted, "open reader delays publication");
+        stop.Cancel();
+        await Expect<OperationCanceledException>(() => pending);
+        retrying = retry.TryPublishAsync("ready", default);
+        Require(!retrying.IsCompleted, "retry waits for the reader");
+    }
+    Require(await retrying && File.Exists(Path.Combine(folder, "ready", "result")),
+        "same stage can publish after the reader closes");
 }
 
 Task MoveOutcomes()

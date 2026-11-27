@@ -96,7 +96,7 @@ public static class Archives
             {
                 timeout.Token.ThrowIfCancellationRequested();
                 var leaf = OutputFiles.Candidate(stem + " extracted", index);
-                if (stage.TryPublish(leaf)) return Path.Combine(destination, leaf);
+                if (await stage.TryPublishAsync(leaf, timeout.Token)) return Path.Combine(destination, leaf);
             }
             throw new IOException("Could not choose an extraction folder name.");
         }
