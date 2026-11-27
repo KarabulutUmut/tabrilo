@@ -1,0 +1,54 @@
+{
+  "wrapper": "15.1.0",
+  "nativeVersion": "2026.1101.825",
+  "commit": "ce236bfba506817317517c3d6113b5566ecd03cd",
+  "build": "https://github.com/dlemstra/Magick.Native/blob/ce236bfba506817317517c3d6113b5566ecd03cd/build/windows/build.cmd",
+  "vendorZip": "https://github.com/dlemstra/Magick.Native/releases/download/2026.1101.825/windows-Q8-x64.zip",
+  "zipSha256": "5A029D28F47717D8AED04B3FDC58D26F4B748063DDF83F95425B116DDF1064F8",
+  "vendorDllSha256": "AE75079397C8F5678B76C6247FD39DDD7103D25FB41C8B269B67A69732C07191",
+  "packagedDllSha256": "D0A95D90AED4B7A0012C15363012639DB7F5F3099412027890E2C4305FAF63AA",
+  "signer": "CN=ImageMagick Studio LLC, O=ImageMagick Studio LLC, L=Landenberg, S=Pennsylvania, C=US",
+  "identicalSections": [
+    {
+      "name": ".text",
+      "bytes": 17427456,
+      "sha256": "DA908DC8A8D0EDB1009F1FF70912FCE4A0FA20DE69C23B2941D8652055A7FA8B"
+    },
+    {
+      "name": ".rdata",
+      "bytes": 6099456,
+      "sha256": "17D5A42873FEF8607FD3BAAAB41EFD549469552C02A6B93121AD86F1C0673BB9"
+    },
+    {
+      "name": ".data",
+      "bytes": 445952,
+      "sha256": "A00CF0F350CEDF988E3A09045593AC4E1B82623CD41342B62DAC846F482022C5"
+    },
+    {
+      "name": ".pdata",
+      "bytes": 639488,
+      "sha256": "71CB75AB5BAB0A2D36AA903FEB861627185FCB2C2F5D234D6923124822C3D514"
+    },
+    {
+      "name": ".fptable",
+      "bytes": 512,
+      "sha256": "076A27C79E5ACE2A3D47F9DD2E83E4FF6EA8872B3C2218F66C92B89B55F36560"
+    },
+    {
+      "name": "_RDATA",
+      "bytes": 512,
+      "sha256": "868C958D898DBDE307883A638DC38BE31F843E849DD51C978B698F2DD472CB0C"
+    },
+    {
+      "name": ".rsrc",
+      "bytes": 232448,
+      "sha256": "51531AE6FF9763A47897AA0F8E16FFA3B5DF978680FC687959EC4CBB89B8630D"
+    },
+    {
+      "name": ".reloc",
+      "bytes": 67584,
+      "sha256": "7185A62F5C0DFD5622B54A0AB23486C473DECC750CC668EC9E2268B36EDE7E39"
+    }
+  ],
+  "relinkGate": "Need matching VS 2026 C++ toolchain, delegate sources and a demonstrated replacement rebuild for static Q8 x64."
+}

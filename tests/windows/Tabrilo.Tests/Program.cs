@@ -25,6 +25,8 @@ while (current is not null && !File.Exists(Path.Combine(current.FullName, "Tabri
 var repository = current?.FullName ?? throw new InvalidOperationException("Run from the Tabrilo repository.");
 var evidence = Path.Combine(repository, "artifacts", "tests", DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Environment.ProcessId);
 Directory.CreateDirectory(evidence);
+if (args is ["--desktop", var picture, var document])
+    return await DesktopAcceptance.RunAsync(Path.GetFullPath(picture), Path.GetFullPath(document), evidence);
 var qpdf = Path.Combine(repository, ".tools", "qpdf", "qpdf-12.4.2-msvc64", "bin", "qpdf.exe");
 Console.WriteLine($"Evidence directory {evidence}");
 var checks = new (string Name, Func<Task> Run)[]
@@ -419,6 +421,7 @@ Task MoveOutcomes()
         Hash(file) == hash, "existing item preserved");
     Require(FileActions.Move([file + ".missing"], target, default).Single().Output == null, "missing source reported");
     File.Delete(collision);
+
     using var stop = new CancellationTokenSource();
     var results = FileActions.Move([file, child], target, stop.Token, _ => stop.Cancel());
     Require(results[0].Output == collision && Hash(collision) == hash && results[1].Cancelled && Directory.Exists(child), "partial batch with one committed move");
@@ -446,6 +449,20 @@ void CrossVolumeMove(string secondRoot)
     Require(FileActions.Move([file], destination, default)[0].Output == null && File.ReadAllText(collision) == "existing" &&
         File.ReadAllBytes(file).SequenceEqual(data), "collision preserved both files");
     File.Delete(collision);
+    var active = Path.Combine(source, "active.bin");
+    using (var input = File.Create(active)) input.SetLength(64L << 20);
+    var expected = Hash(active);
+    using var interrupt = new CancellationTokenSource();
+    var cancelled = FileActions.Move([active], destination, interrupt.Token, transferred: bytes =>
+    {
+        if (bytes > 0 && bytes < (64L << 20)) interrupt.Cancel();
+    })[0];
+    var activeTarget = Path.Combine(destination, "active.bin");
+    Require(interrupt.IsCancellationRequested && cancelled.Cancelled && Hash(active) == expected &&
+        !File.Exists(activeTarget), "active native transfer cancelled with intact source and no destination");
+    Require(FileActions.Move([active], destination, default)[0].Output == activeTarget &&
+        Hash(activeTarget) == expected && !File.Exists(active), "safe retry after in-flight cancellation");
+    File.Delete(activeTarget);
     Require(FileActions.Move([tree], destination, new CancellationToken(true))[0].Cancelled && File.Exists(leaf),
         "pre-transfer cancellation preserved tree");
     using var stop = new CancellationTokenSource();

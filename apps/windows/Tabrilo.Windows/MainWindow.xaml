@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:Tabrilo.Windows"
         Title="Tabrilo" Height="620" Width="730" MinWidth="600" MinHeight="410"
         WindowStartupLocation="CenterScreen" AllowDrop="True"
-        Background="{DynamicResource Background}" Foreground="{DynamicResource Text}" FontFamily="Segoe UI" FontSize="14">
+        Background="{DynamicResource Background}" Foreground="{DynamicResource Text}" FontFamily="Segoe UI" FontSize="{DynamicResource BodyFontSize}">
     <Grid Margin="18,14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
@@ -26,7 +26,7 @@
                         <Path Data="M48,78 L73,107 73,134 48,108 Z" Fill="#138E83"/>
                     </Canvas>
                 </Viewbox>
-                <TextBlock Text="Tabrilo" FontWeight="SemiBold" FontSize="20" VerticalAlignment="Center"/>
+                <TextBlock Text="Tabrilo" FontWeight="SemiBold" FontSize="{DynamicResource TitleFontSize}" VerticalAlignment="Center"/>
             </StackPanel>
         </DockPanel>
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">

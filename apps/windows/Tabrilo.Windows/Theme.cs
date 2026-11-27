@@ -9,8 +9,13 @@ namespace Tabrilo.Windows;
 
 internal static class Theme
 {
-    public static void Apply(string appearance)
+    internal static double TextScale { get; private set; } = 1;
+
+    public static void Apply(string appearance, double? textScale = null)
     {
+        TextScale = Math.Clamp(textScale ?? new global::Windows.UI.ViewManagement.UISettings().TextScaleFactor, 1, 2.25);
+        Application.Current.Resources["BodyFontSize"] = 14 * TextScale;
+        Application.Current.Resources["TitleFontSize"] = 20 * TextScale;
         using var personalize = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
         var dark = appearance == "Dark" || appearance == "System" && Equals(personalize?.GetValue("AppsUseLightTheme"), 0);
         using var stream = typeof(Theme).Assembly.GetManifestResourceStream("Tabrilo.Tokens.json")!;

@@ -20,7 +20,7 @@ internal static class Controls
 
     public static TextBlock Text(string text, double size = 14, bool secondary = false)
     {
-        var element = new TextBlock { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap };
+        var element = new TextBlock { Text = text, FontSize = size * Theme.TextScale, TextWrapping = TextWrapping.Wrap };
         element.SetResourceReference(TextBlock.ForegroundProperty, secondary ? "Secondary" : "Text");
         return element;
     }

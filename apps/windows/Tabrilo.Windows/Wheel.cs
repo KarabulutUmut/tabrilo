@@ -54,7 +54,7 @@ internal sealed class Wheel : Window
         this.invoke = invoke;
         this.external = external;
         Title = "Tabrilo actions";
-        Width = Height = Diameter;
+        Width = Height = Diameter * Theme.TextScale;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = true;
@@ -379,8 +379,8 @@ internal sealed class Wheel : Window
         var handle = new WindowInteropHelper(this).EnsureHandle();
         var monitor = MonitorFromPoint(new DragGesture.NativePoint { X = x, Y = y }, 2);
         var dpi = GetDpiForMonitor(monitor, 0, out var dpiX, out var dpiY) == 0 ? (dpiX, dpiY) : (96U, 96U);
-        var width = Math.Min(bounds.Width, (int)Math.Round(Diameter * dpi.Item1 / 96.0));
-        var height = Math.Min(bounds.Height, (int)Math.Round(Diameter * dpi.Item2 / 96.0));
+        var width = Math.Min(bounds.Width, (int)Math.Round(Diameter * Theme.TextScale * dpi.Item1 / 96.0));
+        var height = Math.Min(bounds.Height, (int)Math.Round(Diameter * Theme.TextScale * dpi.Item2 / 96.0));
         SetWindowPos(handle, IntPtr.Zero, Math.Clamp(x - width / 2, bounds.Left, bounds.Right - width),
             Math.Clamp(y - height / 2, bounds.Top, bounds.Bottom - height), width, height, 0x0014);
     }

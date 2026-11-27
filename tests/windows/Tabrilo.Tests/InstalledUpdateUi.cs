@@ -19,7 +19,11 @@ internal static class InstalledUpdateUi
             {
                 await Task.Delay(150, timeout.Token);
                 if (old.HasExited) throw new IOException("The installed app exited before update consent.");
-                var dialog = AutomationElement.RootElement.FindFirst(TreeScope.Children, match);
+                old.Refresh();
+                if (old.MainWindowHandle == IntPtr.Zero) continue;
+                var main = AutomationElement.FromHandle(old.MainWindowHandle);
+                var dialog = main.FindFirst(TreeScope.Descendants, match) ??
+                    AutomationElement.RootElement.FindFirst(TreeScope.Children, match);
                 var yes = dialog?.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.AutomationIdProperty, "6"));
                 if (yes is null) continue;
                 ((InvokePattern)yes.GetCurrentPattern(InvokePattern.Pattern)).Invoke();

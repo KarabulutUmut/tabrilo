@@ -14,7 +14,7 @@
             <Setter Property="Background" Value="{DynamicResource Background}"/>
             <Setter Property="Foreground" Value="{DynamicResource Text}"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontSize" Value="{DynamicResource BodyFontSize}"/>
         </Style>
         <Style TargetType="Button">
             <Setter Property="Padding" Value="12,6"/>

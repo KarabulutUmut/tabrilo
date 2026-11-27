@@ -33,8 +33,9 @@
       "Tabrilo": {
         "type": "Project",
         "dependencies": {
+          "BouncyCastle.Cryptography": "[2.7.0, 2.7.0]",
           "NetSparkleUpdater.SparkleUpdater": "[3.1.0, 3.1.0]",
-          "Tabrilo.Processing": "[1.0.0, )"
+          "Tabrilo.Processing": "[0.2.0, )"
         }
       },
       "tabrilo.core": {
@@ -48,9 +49,15 @@
           "SharpCompress": "[0.50.9, 0.50.9]",
           "System.IO.Hashing": "[11.0.0, 11.0.0]",
           "System.Security.Cryptography.Pkcs": "[11.0.0, 11.0.0]",
-          "Tabrilo.Core": "[1.0.0, )",
+          "Tabrilo.Core": "[0.2.0, )",
           "ZXing.Net": "[0.16.11, 0.16.11]"
         }
+      },
+      "BouncyCastle.Cryptography": {
+        "type": "CentralTransitive",
+        "requested": "[2.7.0, 2.7.0]",
+        "resolved": "2.7.0",
+        "contentHash": "U+12df8UEWHgBi04YVf/Lgi2dy3SItlIYvHjjEVa/BngCQIzDCDRBk50DDByCfDvSbe5pRNFr3b7UrVK2kMcLw=="
       },
       "Magick.NET-Q8-x64": {
         "type": "CentralTransitive",

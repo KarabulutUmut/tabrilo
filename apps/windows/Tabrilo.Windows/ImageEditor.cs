@@ -88,7 +88,7 @@ internal sealed class ImageEditor : Window
         SetResourceReference(BackgroundProperty, "Background");
         SetResourceReference(ForegroundProperty, "Text");
         FontFamily = new FontFamily("Segoe UI");
-        FontSize = 14;
+        SetResourceReference(FontSizeProperty, "BodyFontSize");
         WindowStartupLocation = owner is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner;
         Width = 860;
         Height = 625;

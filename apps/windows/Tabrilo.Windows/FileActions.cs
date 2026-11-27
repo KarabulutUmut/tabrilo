@@ -101,7 +101,7 @@ internal sealed class FileActions : IDisposable
     }
 
     internal static List<FileOutcome> Move(string[] paths, string destination, CancellationToken token,
-        Action<FileOutcome>? completed = null)
+        Action<FileOutcome>? completed = null, Action<long>? transferred = null)
     {
         var results = new List<FileOutcome>(paths.Length);
         var cancelled = false;
@@ -139,7 +139,18 @@ internal sealed class FileActions : IDisposable
                 else
                 {
                     transferStarted = true;
-                    FileSystem.MoveFile(path, target, UIOption.AllDialogs, UICancelOption.ThrowException);
+                    MoveProgress progress = (_, bytes, _, _, _, _, _, _, _) =>
+                    {
+                        transferred?.Invoke(bytes);
+                        return token.IsCancellationRequested ? 1U : 0U;
+                    };
+                    if (!MoveFileWithProgressW(path, target, progress, IntPtr.Zero, 2 /* MOVEFILE_COPY_ALLOWED */))
+                    {
+                        var error = Marshal.GetLastWin32Error();
+                        if (token.IsCancellationRequested && error is 995 or 1235) throw new OperationCanceledException(token);
+                        throw new IOException(new System.ComponentModel.Win32Exception(error).Message);
+                    }
+                    if (File.Exists(path)) throw new IOException("Windows copied the file but could not remove the source.");
                 }
                 results.Add(new(path, target, "Moved"));
             }
@@ -185,6 +196,11 @@ internal sealed class FileActions : IDisposable
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern uint GetFinalPathNameByHandleW(Microsoft.Win32.SafeHandles.SafeFileHandle file,
         StringBuilder path, uint capacity, uint flags);
+
+    private delegate uint MoveProgress(long total, long transferred, long streamSize, long streamBytes,
+        uint streamNumber, uint reason, IntPtr source, IntPtr destination, IntPtr state);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]
+    private static extern bool MoveFileWithProgressW(string source, string destination, MoveProgress progress, IntPtr state, uint flags);
 
     private void OnShare(DataTransferManager sender, DataRequestedEventArgs args)
     {

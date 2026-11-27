@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices;
@@ -14,6 +15,8 @@ using System.Xml;
 using System.Xml.Linq;
 using NetSparkleUpdater.Enums;
 using NetSparkleUpdater.SignatureVerifiers;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Math.EC.Rfc8032;
 
 namespace Tabrilo.Windows;
 
@@ -31,6 +34,7 @@ internal sealed class Updates : IDisposable
     private static readonly UpdateChannel BuiltIn = ReadChannel();
     private readonly HttpClient client;
     private readonly Ed25519Checker verifier;
+    private readonly Ed25519PublicKeyParameters installerKey;
     private readonly Uri feed;
     private readonly Uri installerOrigin;
     private readonly Uri? installerRedirectOrigin;
@@ -97,6 +101,7 @@ internal sealed class Updates : IDisposable
             installerRedirectOrigin = redirect;
         }
         verifier = new Ed25519Checker(SecurityMode.Strict, channel.PublicKey, null, true, 1 << 20);
+        installerKey = new Ed25519PublicKeyParameters(Convert.FromBase64String(channel.PublicKey));
         client = new HttpClient(handler ?? new SocketsHttpHandler { AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(Limits.ConnectionSeconds) })
         { Timeout = Timeout.InfiniteTimeSpan };
     }
@@ -198,7 +203,7 @@ internal sealed class Updates : IDisposable
         using var contents = File.OpenRead(path);
         if (!IsCompatible(candidate) || contents.Length != candidate.Length ||
             !Convert.ToHexString(SHA256.HashData(contents)).Equals(candidate.Sha256, StringComparison.OrdinalIgnoreCase) ||
-            verifier.VerifySignatureOfFile(candidate.Signature, path) != ValidationResult.Valid)
+            !VerifyInstallerSignature(contents, candidate.Signature))
             throw new InvalidDataException("The installer failed strict signature verification.");
         var product = FileVersionInfo.GetVersionInfo(path);
         var version = new Version(product.ProductMajorPart, product.ProductMinorPart,
@@ -209,6 +214,23 @@ internal sealed class Updates : IDisposable
         if (version != expected || product.ProductName != "Tabrilo" ||
             product.FileDescription != $"{identity} Windows x64 {channel.Flavor} installer")
             throw new InvalidDataException("The signed installer identity or version differs from the update feed.");
+    }
+
+    private unsafe bool VerifyInstallerSignature(FileStream file, string encodedSignature)
+    {
+        // Present the signed bytes directly to the standard Ed25519 primitive. A read-only file view
+        // lets Windows page the installer from disk without creating a package-sized private buffer.
+        using var mapping = MemoryMappedFile.CreateFromFile(file, null, 0, MemoryMappedFileAccess.Read,
+            HandleInheritability.None, leaveOpen: true);
+        using var view = mapping.CreateViewAccessor(0, file.Length, MemoryMappedFileAccess.Read);
+        byte* pointer = null;
+        view.SafeMemoryMappedViewHandle.AcquirePointer(ref pointer);
+        try
+        {
+            var message = new ReadOnlySpan<byte>(pointer + view.PointerOffset, checked((int)file.Length));
+            return installerKey.Verify(Ed25519.Algorithm.Ed25519, null, message, Convert.FromBase64String(encodedSignature));
+        }
+        finally { view.SafeMemoryMappedViewHandle.ReleasePointer(); }
     }
 
     private bool IsCompatible(UpdateCandidate candidate) => candidate.Version > current && candidate.Flavor == channel.Flavor &&

@@ -5,6 +5,7 @@
     <OutputType>WinExe</OutputType>
     <AssemblyName>Tabrilo</AssemblyName>
     <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -18,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="../Tabrilo.Processing/Tabrilo.Processing.csproj" />
     <PackageReference Include="NetSparkleUpdater.SparkleUpdater" />
+    <PackageReference Include="BouncyCastle.Cryptography" />
     <EmbeddedResource Include="../../../shared/design/tokens.json" LogicalName="Tabrilo.Tokens.json" />
     <EmbeddedResource Include="../../../shared/contracts/windows-update.json" LogicalName="Tabrilo.Updates.json" />
     <EmbeddedResource Include="../../../shared/contracts/capabilities.json" LogicalName="Tabrilo.Capabilities.json" />

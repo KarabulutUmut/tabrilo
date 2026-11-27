@@ -78,8 +78,8 @@ internal sealed class JobResults : IDisposable
         var entry = new Expander { Header = label, IsExpanded = true, Content = details, Margin = new Thickness(0, 4, 0, 6) };
         jobs.Children.Insert(0, entry);
         while (jobs.Children.Count > 50) jobs.Children.RemoveAt(50);
-        var cancelLabel = move ? "Stop queued items" : "Cancel";
-        Notify(workArea, move ? "Move · Use the Windows transfer dialog to cancel an active transfer." : label + "…", cancelLabel, cancel);
+        var cancelLabel = move ? "Stop move" : "Cancel";
+        Notify(workArea, move ? "Stop interrupts file transfers and skips queued items. For an active folder, cancel in the Windows transfer dialog." : label + "…", cancelLabel, cancel);
         return new JobView(this, entry, details, label, cancel, workArea, cancelLabel);
     }
 

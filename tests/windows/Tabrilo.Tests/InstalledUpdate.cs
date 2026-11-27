@@ -77,7 +77,16 @@ internal static class InstalledUpdate
                 start.ArgumentList.Add(workingFeed);
                 using var process = Process.Start(start) ?? throw new IOException("Could not launch installed application.");
                 using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+                long peakPrivate = 0;
+                while (!process.HasExited)
+                {
+                    process.Refresh();
+                    if (!process.HasExited) peakPrivate = Math.Max(peakPrivate, process.PeakPagedMemorySize64);
+                    await Task.Delay(100, timeout.Token);
+                }
                 await process.WaitForExitAsync(timeout.Token);
+                Console.WriteLine($"Installed updater peak private commit: {peakPrivate} bytes.");
+                if (success && oldOffice) Require(peakPrivate is > 0 and < (400L << 20), "bounded Office installer verification memory");
                 var errorFile = Path.Combine(workingFeed, "update-error.txt");
                 if (success && process.ExitCode != 0 && File.Exists(errorFile)) Console.WriteLine(File.ReadAllText(errorFile));
                 Require(process.ExitCode == (success ? 0 : 1), "installed updater exit status");
@@ -93,9 +102,12 @@ internal static class InstalledUpdate
         Require(storage.Read() is { Appearance: "Dark", Recent.Length: 1 }, "update preserved preferences and history");
         await Run(Path.Combine(Path.GetDirectoryName(upgraded)!, "Uninstall.exe"), "/S");
         var elapsed = Stopwatch.StartNew();
-        while ((File.Exists(upgraded) || File.Exists(original)) && elapsed.Elapsed < TimeSpan.FromSeconds(30))
+        // NSIS starts an independent uninstaller. Two full Office receipts take longer on a fresh runner.
+        while ((File.Exists(upgraded) || File.Exists(original) ||
+            Registry.GetValue(@"HKEY_CURRENT_USER\Software\" + identity, "Version", null) != null) && elapsed.Elapsed < TimeSpan.FromMinutes(4))
             await Task.Delay(100);
-        Require(!File.Exists(upgraded) && !File.Exists(original) && storage.Read().Appearance == "Dark" &&
+        Require(!File.Exists(upgraded) && !File.Exists(original) &&
+            Registry.GetValue(@"HKEY_CURRENT_USER\Software\" + identity, "Version", null) == null && storage.Read().Appearance == "Dark" &&
             File.ReadAllText(export) == "synthetic export", "uninstall preserved local state and exported file");
         // Only the fresh synthetic profile created above belongs to this run.
         File.Delete(Path.Combine(Settings, "preferences.json"));
