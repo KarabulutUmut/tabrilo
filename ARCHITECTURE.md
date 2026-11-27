@@ -102,6 +102,8 @@ Normalize color deliberately; metadata privacy must not silently corrupt normal 
 PDF rendering disables scripts/actions/network resources. Rewriting properties must remove old metadata revisions.
 For PDF preservation limits, reject or clearly request consent rather than silently flattening or losing content.
 Archive writers enforce containment at filesystem access time, reject links/special paths, and measure streamed output bytes.
+Windows creates each extraction entry relative to its owned directory handle and renames the held root.
+Rollback removes entries by handle. After sealing, it checks parent identities, file IDs and namespace changes first.
 Treat QR results as text until an explicit allowed-link action is confirmed.
 Never log passwords, raw document contents, QR secrets, images, or private signing material.
 Diagnostics should use redacted/relative paths where possible, bounded rotation, and no automatic upload.
@@ -122,6 +124,7 @@ Windows: use native/OLE drag payloads and a suitable overlay; do not infer dragg
 Do not inject DLLs into Explorer, install privileged drivers, or require administrator rights for normal interaction.
 Hook only the input needed for the explicit gesture; release resources on exit, failure, or permission denial.
 Windows observes button edges from Explorer and scopes key observation to the held gesture.
+Acquiring shell file data adds nonactivating OLE rejection windows behind the wheel across physical monitors.
 A provisional OLE target obtains real CF_HDROP before revealing the wheel. Its physical release and
 OLE Drop must agree on a sector. Cancelled sessions reject late notifications. AppKit uses dragging
 sequence numbers and native pasteboard file URLs. Both consume the versioned shared wheel contract.
@@ -138,6 +141,9 @@ If Codex runs in WSL, invoke native Windows tools for WPF and record any inabili
 Avoid trimming/AOT for WPF or native wrappers unless explicitly validated. Use a self-contained x64 release payload.
 Keep the app functional without the developer SDK or ad hoc dependencies inherited from the developer's PATH.
 The Windows installer is per-user with no routine elevation, supports upgrades/uninstall, and keeps data outside installation.
+Each version registers its own SHA-256 receipt for its component selection, directory names and file digests.
+Setup checks staged content before publication and can repair missing entries from an identical package.
+Uninstall retains modified and unrelated files. Multiple receiptless legacy versions require manual reconciliation.
 Test interrupted/failed upgrades and recovery; do not invent a separate custom update cryptosystem or advertise untested rollback.
 
 ## Update trust and release pipeline

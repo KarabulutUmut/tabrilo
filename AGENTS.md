@@ -43,7 +43,8 @@ Keep STATUS.md at no more than five prioritized next actions. Replace its old ha
 ## Wheel acceptance
 
 Use the mode contract in PRODUCT.md and shared/contracts/wheel.json. Test physical release outside,
-in the center and in sector gaps. Record returning before release and native-source evidence per OS.
+in the center and in sector gaps. For outside release, use a real receiving folder and check both
+the source hash and destination contents. Record returning before release and native-source evidence per OS.
 
 ## Engineering rules
 

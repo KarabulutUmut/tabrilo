@@ -70,7 +70,8 @@ Tap Shift, Control or Alt/Option during a file drag to choose Convert, Tools or 
 Anchor the graphite wheel near invocation within the monitor work area. The shared diameter is 328 logical units.
 The top slice is index zero. Angles increase clockwise. Match the visible sectors exactly when hit testing.
 Convert shows the supported formats directly. Tools reflects the full selection and Actions keeps six fixed positions.
-The center and gaps are neutral. Releasing there or outside dismisses the wheel with no command.
+The center and gaps are neutral. Once acquired, release outside a slice cancels even over a valid folder.
+An outside release leaves the source in place and the receiving folder untouched.
 Returning while still holding the button is valid. Modifier release changes nothing. Escape latches cancellation.
 Keyboard mode exposes labeled actions, mode switching, focus navigation and Enter.
 Use small nonactivating progress and completion feedback with Cancel or Reveal. Jobs opens on request.

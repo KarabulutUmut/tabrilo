@@ -4,7 +4,7 @@
 
 Tabrilo is a native desktop toolkit for working locally with images, PDFs, QR
 codes and archives. The Windows development build uses WPF and .NET 10. The
-macOS has an AppKit wheel, native image/PDF export, image compression and metadata tools, and file actions.
+macOS app has an AppKit wheel, native image/PDF export, image compression and metadata tools, and file actions.
 
 Tabrilo is in development and has no approved public release. See
 [STATUS.md](STATUS.md) for verification and remaining acceptance work.
@@ -87,12 +87,18 @@ from Save copy. Development builds show their version and commit in the title.
 
 The Windows installer stages each version under the current user's Programs
 folder. Settings and history live in LocalAppData outside that folder.
+Rerun the identical installer to verify the payload and restore missing files. Setup reports a conflict
+if that displayed version has different bits or a different component selection. To switch between
+core and Office, uninstall first or install a newer version. Newer versions use separate folders.
+Each version's receipt controls uninstall. Modified or unrelated files are preserved.
+Run `./scripts/test-installer.ps1` after restoring installer tools to exercise these transitions
+with a small synthetic component and a fresh per-user test identity.
 Applications built from the current checkout display an unconfigured update
 channel. Windows x64 updates require signed appcasts and installers.
 
 GitHub Actions builds and tests Windows from a clean checkout. On main it also
-checks an unsigned self-contained payload on the runner. Desktop interaction
-and installed-updater acceptance require separate native sessions. Release
+checks an unsigned self-contained payload. Manually dispatch Windows CI for a clean Office installation,
+document conversions and a signed isolated upgrade to core. Explorer gestures require a desktop. Release
 publication is inactive. Production signing, feed configuration and binary
 redistribution still require review and owner approval.
 

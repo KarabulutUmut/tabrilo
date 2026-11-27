@@ -118,6 +118,8 @@ Release on an enabled slice to commit once. Escape or releasing the primary butt
 Moving out while held permits returning. Copy-like drops must never request a destructive native move.
 From the top clockwise, Actions contains Share, Float, Copy, Move, Copy Path and Terminal for files and folders.
 Float holds up to 64 temporary references. Only the explicit Move action changes the source location.
+Move rejects self and descendant destinations. Report each completed, skipped or failed item.
+An interrupted native transfer identifies both locations for inspection before retry.
 Shift offers JPG/PNG and PDF for still images, and PNG/JPG for PDF pages. Omit same-format targets.
 DOCX/PPTX offer PDF and page images with a configured local layout engine. Editable PDF reconstruction remains outstanding.
 Several images form one PDF in deterministic path order. Several PDF exports use separate source-adjacent folders.
@@ -134,6 +136,7 @@ No persistent unredacted thumbnails. Missing files are shown without deleting or
 ## Output and job behavior
 
 Originals remain unchanged by default. Write, validate, then publish new outputs with collision-safe names.
+Image-to-PDF preserves normalization and uses lossless final stream compression.
 Default separate exports to each source directory. Let a configured export directory override this.
 Clipboard exports require an explicit export folder. Combined exports from different folders require one chosen destination.
 Offer an intentional destination override and ask for a fallback when the original destination cannot be used.
