@@ -11,35 +11,21 @@ using Tabrilo.Core;
 using Tabrilo.Processing;
 using Tabrilo.Windows;
 
-internal sealed class DesktopAcceptance(string picture, string document, string evidence) : Application
+public sealed class DesktopAcceptance(string picture, string document, string evidence) : Application
 {
-    internal static int Run(string picture, string document, string evidence)
+    public static int RunOnMainThread(string picture, string document, string evidence)
     {
-        Exception? failure = null;
-        var exitCode = 1;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                var app = new DesktopAcceptance(picture, document, evidence);
-                var markup = System.Xml.Linq.XDocument.Load("apps/windows/Tabrilo.Windows/App.xaml").Root!;
-                var ns = markup.Name.Namespace;
-                var dictionary = new System.Xml.Linq.XElement(ns + "ResourceDictionary",
-                    markup.Attributes().Where(attribute => attribute.IsNamespaceDeclaration),
-                    markup.Element(ns + "Application.Resources")!.Elements());
-                app.Resources = (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(dictionary.ToString());
-                app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-                exitCode = app.Run();
-                Console.WriteLine("WPF dispatcher exited " + exitCode);
-            }
-            catch (Exception ex) { failure = ex; }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-        Console.WriteLine("Desktop STA exited.");
-        if (failure != null) throw new InvalidOperationException("Desktop acceptance failed.", failure);
-        return exitCode;
+        if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
+            throw new InvalidOperationException("Start the desktop driver from its STA entry point.");
+        var app = new DesktopAcceptance(picture, document, evidence);
+        var markup = System.Xml.Linq.XDocument.Load("apps/windows/Tabrilo.Windows/App.xaml").Root!;
+        var ns = markup.Name.Namespace;
+        var dictionary = new System.Xml.Linq.XElement(ns + "ResourceDictionary",
+            markup.Attributes().Where(attribute => attribute.IsNamespaceDeclaration),
+            markup.Element(ns + "Application.Resources")!.Elements());
+        app.Resources = (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(dictionary.ToString());
+        app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        return app.Run();
     }
 
     protected override async void OnStartup(StartupEventArgs args)
@@ -146,6 +132,15 @@ internal sealed class DesktopAcceptance(string picture, string document, string 
             quit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await System.Windows.Threading.Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             if (Windows.OfType<Window>().Any(window => window.IsVisible)) throw new IOException("A test window remained open after Quit.");
+            if (Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") == "github-hosted")
+            {
+                using var process = Process.GetCurrentProcess();
+                var modules = process.Modules.Cast<ProcessModule>().Select(module => new
+                {
+                    name = module.ModuleName, address = module.BaseAddress.ToInt64(), size = module.ModuleMemorySize
+                });
+                File.WriteAllText(Path.Combine(evidence, "modules.json"), JsonSerializer.Serialize(modules));
+            }
             Console.WriteLine("Visible WPF windows, focus, real rendering, bounded load and native Quit passed. " + evidence);
             Shutdown(0);
         }

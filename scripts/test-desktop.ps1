@@ -28,15 +28,29 @@ public static class DesktopContrast {
 }
 $started = Get-Date
 try {
-    Invoke-TabriloDotnet @('run','--project',$TabriloProjects.Tests,'-c','Release','--no-build','--','--desktop',$imagePath,$pdf)
+    Invoke-TabriloDotnet @('run','--project','tests/windows/Tabrilo.DesktopTests','-c','Release','--no-build','--',$imagePath,$pdf)
     if ($HostedHighContrast) {
         $report = Get-ChildItem "$TabriloRoot/artifacts/tests/*/desktop.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
         if (!$report -or !(Get-Content $report.FullName -Raw | ConvertFrom-Json).highContrast) { throw 'WPF did not observe system high contrast.' }
     }
 } catch {
     if ($HostedHighContrast) {
-        Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=$started; Id=1000,1001,1026} -ErrorAction SilentlyContinue |
-            Select-Object -First 6 TimeCreated,ProviderName,Message | Format-List | Out-Host
+        $events = Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=$started; Id=1000,1001,1026} -ErrorAction SilentlyContinue
+        $events | Select-Object -First 6 TimeCreated,ProviderName,Message | Format-List | Out-Host
+        $inventory = Get-ChildItem "$TabriloRoot/artifacts/tests/*/modules.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($inventory) {
+            $modules = Get-Content -Raw $inventory.FullName | ConvertFrom-Json
+            foreach ($event in $events) {
+                if ($event.Message -match 'exception address ([0-9A-Fa-f]+)') {
+                    $address = [Convert]::ToInt64($Matches[1],16)
+                    foreach ($module in $modules) {
+                        if ($address -ge $module.address -and $address -lt ($module.address + $module.size)) {
+                            Write-Host ('Exception in {0}+0x{1:X}' -f $module.name,($address-$module.address))
+                        }
+                    }
+                }
+            }
+        }
     }
     throw
 } finally {

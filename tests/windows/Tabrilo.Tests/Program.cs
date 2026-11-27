@@ -25,8 +25,6 @@ while (current is not null && !File.Exists(Path.Combine(current.FullName, "Tabri
 var repository = current?.FullName ?? throw new InvalidOperationException("Run from the Tabrilo repository.");
 var evidence = Path.Combine(repository, "artifacts", "tests", DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Environment.ProcessId);
 Directory.CreateDirectory(evidence);
-if (args is ["--desktop", var picture, var document])
-    return DesktopAcceptance.Run(Path.GetFullPath(picture), Path.GetFullPath(document), evidence);
 if (args is ["--folder-transfer", var volumeRoot])
 {
     await FolderTransfer.CancelAsync(evidence, volumeRoot);
