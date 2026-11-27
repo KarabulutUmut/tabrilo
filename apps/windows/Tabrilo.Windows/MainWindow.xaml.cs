@@ -56,6 +56,7 @@ public partial class MainWindow : Window
         {
             if (App.InputPaths.Length != 0) Add(App.InputPaths);
             else Render();
+            if (preferences.CheckUpdatesOnStartup && Updates.Configured) _ = Dispatch("updates");
         };
         PreviewKeyDown += OnKey;
         DragOver += OnDrag;
@@ -222,7 +223,8 @@ public partial class MainWindow : Window
         {
             if (state.Busy || quitting) return;
             var origin = external ? InvocationOrigin.ExplorerWheel : InvocationOrigin.KeyboardWheel;
-            try { await operations.RunAsync(id, received.Select(path => new OperationInput(path, clipboard.Contains(path))), origin); }
+            try { await operations.RunAsync(id, received.Select(path => new OperationInput(path, clipboard.Contains(path))), origin,
+                invocationPoint: new(at.X, at.Y)); }
             catch (Exception error)
             {
                 MessageBox.Show($"Unexpected failure in {id} ({error.GetType().Name}). Check Job results before retrying.",
@@ -397,6 +399,8 @@ public partial class MainWindow : Window
         Controls.Heading(panel, "Updates and about", 16);
         panel.Children.Add(Controls.Text(App.BuildName + " · " +
             (Updates.Configured ? "Windows x64 stable" : "Update channel is unconfigured."), secondary: true));
+        var autoCheck = Controls.Checkbox(panel, "Check for updates on startup", preferences.CheckUpdatesOnStartup);
+        autoCheck.IsEnabled = Updates.Configured;
         if (Updates.Configured) panel.Children.Add(Controls.Button("Check for updates…", () => _ = Dispatch("updates")));
         panel.Children.Add(Controls.Button("Save preferences", () =>
         {
@@ -424,6 +428,7 @@ public partial class MainWindow : Window
             var desired = preferences with
             {
                 Appearance = (string)appearance.SelectedItem, ModeKeys = bindings,
+                CheckUpdatesOnStartup = autoCheck.IsChecked == true,
                 ShowWebP = optionalWebP.IsChecked == true, OfficeExecutable = office.Text.Trim(), JpegQuality = jpgQuality, WebPQuality = webQuality,
                 KeepHistory = history.IsChecked == true, UseTray = tray.IsChecked == true, StartAtLogin = startup.IsChecked == true,
                 ExportDirectory = export, ClipboardDirectory = clip,
@@ -462,10 +467,12 @@ public partial class MainWindow : Window
             if (MessageBox.Show(this, $"Install Tabrilo {available.Version} and close this window?", "Install update",
                     MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
             { File.Delete(installer); state.Status = "Update declined."; return; }
-            using var installation = updates.StartInstaller(available, installer);
+            using var installation = await updates.StartInstallerAsync(available, installer, cancellation.Token);
             state.Busy = false;
             Quit();
         }
+        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
+        { state.Status = "The update service timed out. Check your connection and retry."; }
         finally { job = null; SetBusy(false); }
     }
 

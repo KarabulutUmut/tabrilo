@@ -11,6 +11,7 @@ public sealed record Preferences
     public bool KeepHistory { get; init; } = true;
     public bool UseTray { get; init; } = true;
     public bool StartAtLogin { get; init; }
+    public bool CheckUpdatesOnStartup { get; init; }
     public string[] ModeKeys { get; init; } = [.. WheelCatalog.Shared.Bindings];
     public bool ShowWebP { get; init; }
     public string? OfficeExecutable { get; init; }

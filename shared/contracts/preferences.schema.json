@@ -10,6 +10,7 @@
     },
     "modeKeys": { "type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": { "enum": ["Shift", "Ctrl", "Alt"] } },
     "showWebP": { "type": "boolean" },
+    "checkUpdatesOnStartup": { "type": "boolean", "default": false },
     "officeExecutable": { "type": ["string", "null"] },
     "appearance": {
       "enum": [

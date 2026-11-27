@@ -34,10 +34,11 @@ function New-TabriloInstaller([string] $payload, [string] $output, [string] $ver
         '!macroend'
     ) | Set-Content -LiteralPath $manifest -Encoding utf8BOM
 
-    $installer = Join-Path $output "$kind-$Version-win-x64-Setup.exe"
+    $flavor = if ($includeOffice) { 'office' } else { 'core' }
+    $installer = Join-Path $output "$kind-$Version-win-x64-$flavor-Setup.exe"
     $arguments = @('/V3', "/DPRODUCT_ID=$kind", "/DAPP_VERSION=$Version", "/DPAYLOAD=$payload",
         "/DOUTPUT=$installer", "/DDELETE_MANIFEST=$manifest", "/DRECEIPT_HASH=$receiptHash",
-        "/DRECEIPT_HELPER=$helper", (Join-Path $TabriloRoot 'packaging/windows/Tabrilo.nsi'))
+        "/DRECEIPT_HELPER=$helper", "/DFLAVOR=$flavor", (Join-Path $TabriloRoot 'packaging/windows/Tabrilo.nsi'))
     & $nsis @arguments
     if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $installer)) { throw "NSIS failed with exit $LASTEXITCODE." }
     $digest = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()

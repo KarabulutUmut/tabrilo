@@ -15,10 +15,17 @@ concurrency:
 
 jobs:
   installed-acceptance:
-    name: Clean Windows Office install and signed test upgrade
+    name: Installed ${{ matrix.old }} to ${{ matrix.new }}
     if: github.event_name == 'workflow_dispatch'
     runs-on: windows-2025
-    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { old: core, new: core }
+          - { old: office, new: office }
+          - { old: office, new: core }
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -32,15 +39,12 @@ jobs:
           ./scripts/restore-tools.ps1 -Installer
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           ./scripts/test-installer.ps1
-          $office = (Get-Content -Raw shared/dependencies.json | ConvertFrom-Json).assets.office
-          Invoke-WebRequest $office.url -OutFile ".tools/LibreOffice_$($office.version).msi"
-          ./scripts/package.ps1 -Version 0.1.2 -IsolatedTest -IncludeOffice
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          ./scripts/package.ps1 -Version 0.1.3 -IsolatedTest
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $old = (Get-ChildItem artifacts/package/isolated-test/0.1.2 -Recurse -Filter '*Setup.exe').FullName
-          $new = (Get-ChildItem artifacts/package/isolated-test/0.1.3 -Recurse -Filter '*Setup.exe').FullName
-          ./scripts/test.ps1 -Configuration Release -OldInstaller $old -NewInstaller $new
+          if ('${{ matrix.old }}' -eq 'office' -or '${{ matrix.new }}' -eq 'office') {
+            $office = (Get-Content -Raw shared/dependencies.json | ConvertFrom-Json).assets.office
+            Invoke-WebRequest $office.url -OutFile ".tools/LibreOffice_$($office.version).msi"
+          }
+          ./scripts/rehearse-update.ps1 -OldFlavor '${{ matrix.old }}' -NewFlavor '${{ matrix.new }}'
 
   test:
     name: Windows build and processing tests

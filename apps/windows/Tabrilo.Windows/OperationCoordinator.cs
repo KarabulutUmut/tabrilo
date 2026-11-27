@@ -33,7 +33,8 @@ internal sealed class OperationCoordinator(
     public bool OwnsResults(Window candidate) => results.Owns(candidate);
     public void Dispose() { actions.Dispose(); results.Dispose(); }
 
-    public async Task RunAsync(string id, IEnumerable<OperationInput> inputs, InvocationOrigin origin, OperationRequest? request = null)
+    public async Task RunAsync(string id, IEnumerable<OperationInput> inputs, InvocationOrigin origin, OperationRequest? request = null,
+        System.Drawing.Point? invocationPoint = null)
     {
         if (Busy) return;
         var snapshot = Array.AsReadOnly(inputs.ToArray());
@@ -44,6 +45,9 @@ internal sealed class OperationCoordinator(
             return;
         }
         using var stop = new CancellationTokenSource();
+        var workArea = (invocationPoint is { } point ? System.Windows.Forms.Screen.FromPoint(point) :
+            owner(origin) is { } home ? System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(home).Handle) :
+            System.Windows.Forms.Screen.FromPoint(System.Windows.Forms.Cursor.Position)).WorkingArea;
         cancellation = stop;
         var settings = preferences();
         var context = new OperationContext(command, snapshot, origin, request ?? new(),
@@ -84,7 +88,7 @@ internal sealed class OperationCoordinator(
             busy(false);
         }
 
-        JobResults.JobView Begin() => view ??= results.Start(command.Label, stop.Cancel);
+        JobResults.JobView Begin() => view ??= results.Start(command.Label, stop.Cancel, workArea, id == "action.move");
 
         void Publish(IReadOnlyList<FileOutcome> outcomes)
         {

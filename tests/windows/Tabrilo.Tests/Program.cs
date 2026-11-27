@@ -671,13 +671,13 @@ async Task UpdateTrust()
         var feed = Encoding.UTF8.GetBytes($"""
             <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item>
               <sparkle:channel>isolated-test</sparkle:channel><sparkle:minimumSystemVersion>10.0.19041</sparkle:minimumSystemVersion>
-              <enclosure url="{site}/setup.exe" length="{bytes.Length}" sparkle:os="windows-x64"
+              <enclosure url="{site}/setup.exe" length="{bytes.Length}" sparkle:os="windows-x64" flavor="core" sha256="{Convert.ToHexString(SHA256.HashData(bytes))}"
                 sparkle:version="0.2.0" sparkle:edSignature="{signature}" />
             </item></channel></rss>
             """);
         var signed = Encoding.ASCII.GetBytes(Convert.ToBase64String(Ed25519.Sign(feed, secret)));
         var bad = Encoding.ASCII.GetBytes(Convert.ToBase64String(new byte[64]));
-        var config = new UpdateChannel(1, "isolated-test", "windows-x64", site + "/appcast.xml", site, Convert.ToBase64String(key));
+        var config = new UpdateChannel(2, "isolated-test", "windows-x64", site + "/appcast.xml", site, Convert.ToBase64String(key));
         using var updates = new Updates(config, new Version(0, 1, 0), new Version(10, 0, 19045),
             new Responses(new Dictionary<string, byte[]> { ["/appcast.xml"] = feed, ["/appcast.xml.signature"] = signed,
                 ["/setup.exe"] = "interrupted"u8.ToArray() }));
@@ -691,6 +691,15 @@ async Task UpdateTrust()
         using var downgrade = new Updates(config, new Version(0, 2, 1), new Version(10, 0, 19045),
             new Responses(new Dictionary<string, byte[]> { ["/appcast.xml"] = feed, ["/appcast.xml.signature"] = signed }));
         Require(await downgrade.CheckAsync(default) is null, "refuse downgrade");
+        foreach (var (field, replacement) in new[] { ("windows-x64", "macos-arm64"), ("flavor=\"core\"", "flavor=\"office\""),
+            ("10.0.19041", "99.0.1"), ($"length=\"{bytes.Length}\"", $"length=\"{Updates.MaximumInstaller + 1}\"") })
+        {
+            var edited = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(feed).Replace(field, replacement));
+            var proof = Encoding.ASCII.GetBytes(Convert.ToBase64String(Ed25519.Sign(edited, secret)));
+            using var invalid = new Updates(config, new Version(0, 1, 0), Environment.OSVersion.Version, new Responses(
+                new Dictionary<string, byte[]> { ["/appcast.xml"] = edited, ["/appcast.xml.signature"] = proof }));
+            await Expect<InvalidDataException>(() => invalid.CheckAsync(default));
+        }
     }
     finally { CryptographicOperations.ZeroMemory(seed); CryptographicOperations.ZeroMemory(secret); }
 }

@@ -13,7 +13,7 @@ RequestExecutionLevel user
 SetCompressor zlib
 VIProductVersion "${APP_VERSION}.0"
 VIAddVersionKey "ProductName" "Tabrilo"
-VIAddVersionKey "FileDescription" "Tabrilo Windows x64 installer"
+VIAddVersionKey "FileDescription" "${PRODUCT_ID} Windows x64 ${FLAVOR} installer"
 VIAddVersionKey "FileVersion" "${APP_VERSION}"
 VIAddVersionKey "ProductVersion" "${APP_VERSION}"
 VIAddVersionKey "LegalCopyright" "Umut Karabulut and contributors"

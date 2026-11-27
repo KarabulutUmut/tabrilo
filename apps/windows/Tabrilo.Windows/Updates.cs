@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -17,12 +18,13 @@ using NetSparkleUpdater.SignatureVerifiers;
 namespace Tabrilo.Windows;
 
 internal sealed record UpdateChannel(int Version, string Channel, string Platform, string? Feed,
-    string? InstallerOrigin, string? PublicKey, string? InstallerRedirectOrigin = null);
-internal sealed record UpdateCandidate(Version Version, Version MinimumSystem, Uri Installer, long Length, string Signature);
+    string? InstallerOrigin, string? PublicKey, string? InstallerRedirectOrigin = null, string Flavor = "core");
+internal sealed record UpdateCandidate(Version Version, Version MinimumSystem, Uri Installer, long Length, string Signature,
+    string Flavor, string Sha256);
 
 internal sealed class Updates : IDisposable
 {
-    private const long MaximumInstaller = 300L << 20;
+    internal const long MaximumInstaller = 1L << 30;
     private static readonly XNamespace Sparkle = "http://www.andymatuschak.org/xml-namespaces/sparkle";
     private static readonly UpdateChannel BuiltIn = ReadChannel();
     private readonly HttpClient client;
@@ -34,16 +36,43 @@ internal sealed class Updates : IDisposable
     private readonly Version system;
     private readonly UpdateChannel channel;
 
-    public static bool Configured => BuiltIn is { Version: 1, Feed: not null, InstallerOrigin: not null, PublicKey: not null };
+    public static bool Configured => BuiltIn is { Version: 2, Feed: not null, InstallerOrigin: not null, PublicKey: not null };
     public static Updates Open() => new(BuiltIn,
         typeof(Updates).Assembly.GetName().Version!, Environment.OSVersion.Version);
+
+#if ISOLATED_ACCEPTANCE
+    internal static Updates OpenIsolated(string folder)
+    {
+        const string origin = "https://tabrilo-install-test.invalid";
+        var config = new UpdateChannel(2, "isolated-test", "windows-x64", origin + "/appcast.xml", origin,
+            App.Metadata("IsolatedPublicKey"), Flavor: App.Metadata("Flavor"));
+        return new(config, typeof(Updates).Assembly.GetName().Version!, Environment.OSVersion.Version, new FixtureTransport(folder));
+    }
+
+    private sealed class FixtureTransport(string folder) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            var file = request.RequestUri?.AbsolutePath switch
+            {
+                "/appcast.xml" => "appcast.xml",
+                "/appcast.xml.signature" => "appcast.xml.signature",
+                "/setup.exe" => "setup.exe",
+                _ => throw new InvalidDataException("Unknown isolated feed asset.")
+            };
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                { Content = new StreamContent(File.OpenRead(Path.Combine(folder, file))) });
+        }
+    }
+#endif
 
     internal Updates(UpdateChannel channel, Version current, Version system, HttpMessageHandler? handler = null)
     {
         this.channel = channel;
         this.current = current;
         this.system = system;
-        if (channel.Version != 1 || channel.Platform != "windows-x64" || channel.Channel is not ("stable" or "isolated-test") ||
+        if (channel.Version != 2 || channel.Flavor is not ("core" or "office") ||
+            channel.Platform != "windows-x64" || channel.Channel is not ("stable" or "isolated-test") ||
             !TryTrustedHttps(channel.Feed, out feed) || !TryTrustedHttps(channel.InstallerOrigin, out installerOrigin) ||
             channel.PublicKey is null || Convert.FromBase64String(channel.PublicKey).Length != 32)
             throw new InvalidDataException("The updater trust configuration is missing or invalid.");
@@ -55,8 +84,8 @@ internal sealed class Updates : IDisposable
                 throw new InvalidDataException("The update redirect origin is invalid.");
             installerRedirectOrigin = redirect;
         }
-        verifier = new Ed25519Checker(SecurityMode.Strict, channel.PublicKey);
-        client = new HttpClient(handler ?? new HttpClientHandler { AllowAutoRedirect = false })
+        verifier = new Ed25519Checker(SecurityMode.Strict, channel.PublicKey, null, true, 1 << 20);
+        client = new HttpClient(handler ?? new SocketsHttpHandler { AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(30) })
         { Timeout = Timeout.InfiniteTimeSpan };
     }
 
@@ -70,7 +99,7 @@ internal sealed class Updates : IDisposable
         var signatureUri = new UriBuilder(feed) { Path = feed.AbsolutePath + ".signature" }.Uri;
         await Download(signatureUri, signature, 1024, null, time.Token);
         var signed = Encoding.ASCII.GetString(signature.ToArray()).Trim();
-        if (verifier.VerifySignature(signed, xml.ToArray()) != ValidationResult.Valid)
+        if (!ValidSignature(signed) || verifier.VerifySignature(signed, xml.ToArray()) != ValidationResult.Valid)
             throw new InvalidDataException("The update feed signature is invalid.");
         xml.Position = 0;
         using var reader = XmlReader.Create(xml, new XmlReaderSettings
@@ -80,23 +109,35 @@ internal sealed class Updates : IDisposable
         var appcast = XDocument.Load(reader);
         var items = appcast.Root?.Element("channel")?.Elements("item") ??
             throw new InvalidDataException("The signed update feed has an invalid structure.");
-        return items.Select(ParseItem).OfType<UpdateCandidate>().Where(candidate => candidate.Version > current &&
-            candidate.MinimumSystem <= system).MaxBy(candidate => candidate.Version);
+        var candidates = items.Select(ParseItem).ToArray();
+        var available = candidates.OfType<UpdateCandidate>().Where(IsCompatible).MaxBy(candidate => candidate.Version);
+        if (available is null && candidates.Any(candidate => candidate is null || candidate.Version > current))
+            throw new InvalidDataException("The signed feed advertises an incompatible or malformed update for this installation.");
+        return available;
     }
 
     private UpdateCandidate? ParseItem(XElement item)
     {
         var enclosure = item.Element("enclosure");
         if (enclosure is null || (string?)enclosure.Attribute(Sparkle + "os") != channel.Platform ||
+            (string?)enclosure.Attribute("flavor") != channel.Flavor ||
+            (string?)enclosure.Attribute("sha256") is not { Length: 64 } digest || !digest.All(Uri.IsHexDigit) ||
             (string?)item.Element(Sparkle + "channel") != channel.Channel ||
             !Version.TryParse((string?)enclosure.Attribute(Sparkle + "version"), out var version) ||
             !Version.TryParse((string?)item.Element(Sparkle + "minimumSystemVersion"), out var minimum) ||
             !TryTrustedHttps((string?)enclosure.Attribute("url"), out var installer) ||
             !SameOrigin(installer, installerOrigin) || !installer.AbsolutePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
             !long.TryParse((string?)enclosure.Attribute("length"), NumberStyles.None, CultureInfo.InvariantCulture, out var length) ||
-            length <= 0 || length > MaximumInstaller || (string?)enclosure.Attribute(Sparkle + "edSignature") is not { } signature)
+            length <= 0 || length > MaximumInstaller || (string?)enclosure.Attribute(Sparkle + "edSignature") is not { } signature ||
+            !ValidSignature(signature))
             return null;
-        return new(version, minimum, installer, length, signature);
+        return new(version, minimum, installer, length, signature, channel.Flavor, digest);
+    }
+
+    private static bool ValidSignature(string signature)
+    {
+        Span<byte> decoded = stackalloc byte[64];
+        return Convert.TryFromBase64String(signature, decoded, out var size) && size == decoded.Length;
     }
 
     public async Task<string> DownloadAsync(UpdateCandidate candidate, string root, CancellationToken token)
@@ -104,26 +145,33 @@ internal sealed class Updates : IDisposable
         if (!IsCompatible(candidate)) throw new InvalidDataException("The update is incompatible with this installation.");
         var directory = Path.Combine(root, "Updates");
         Directory.CreateDirectory(directory);
+        if (new DriveInfo(Path.GetPathRoot(Path.GetFullPath(directory))!).AvailableFreeSpace < candidate.Length + (64L << 20))
+            throw new IOException("Free disk space for the installer and 64 MiB of working space, then retry.");
         var path = Path.Combine(directory, $"Tabrilo-setup-{Guid.NewGuid():N}.exe");
         using var time = CancellationTokenSource.CreateLinkedTokenSource(token);
-        time.CancelAfter(TimeSpan.FromMinutes(5));
+        time.CancelAfter(TimeSpan.FromHours(2));
         try
         {
             await using (var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536,
                              FileOptions.Asynchronous))
                 await Download(candidate.Installer, file, MaximumInstaller, candidate.Length, time.Token, installerRedirectOrigin);
             time.Token.ThrowIfCancellationRequested();
-            ValidateInstaller(candidate, path);
+            await Task.Run(() => ValidateInstaller(candidate, path), time.Token);
+            time.Token.ThrowIfCancellationRequested();
             return path;
         }
         catch { File.Delete(path); throw; }
     }
 
-    public Process StartInstaller(UpdateCandidate candidate, string path, bool unattendedTest = false)
+    public Task<Process> StartInstallerAsync(UpdateCandidate candidate, string path, CancellationToken token, bool unattendedTest = false)
+        => Task.Run(() => StartInstaller(candidate, path, token, unattendedTest), token);
+
+    private Process StartInstaller(UpdateCandidate candidate, string path, CancellationToken token, bool unattendedTest)
     {
         // Deny write/delete through process creation and validate again immediately before execution.
         using var handle = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         ValidateInstaller(candidate, path);
+        token.ThrowIfCancellationRequested();
         var start = new ProcessStartInfo(path) { UseShellExecute = false };
         if (unattendedTest)
         {
@@ -135,7 +183,9 @@ internal sealed class Updates : IDisposable
 
     private void ValidateInstaller(UpdateCandidate candidate, string path)
     {
-        if (!IsCompatible(candidate) || new FileInfo(path).Length != candidate.Length ||
+        using var contents = File.OpenRead(path);
+        if (!IsCompatible(candidate) || contents.Length != candidate.Length ||
+            !Convert.ToHexString(SHA256.HashData(contents)).Equals(candidate.Sha256, StringComparison.OrdinalIgnoreCase) ||
             verifier.VerifySignatureOfFile(candidate.Signature, path) != ValidationResult.Valid)
             throw new InvalidDataException("The installer failed strict signature verification.");
         var product = FileVersionInfo.GetVersionInfo(path);
@@ -143,22 +193,26 @@ internal sealed class Updates : IDisposable
             product.ProductBuildPart, product.ProductPrivatePart);
         var expected = new Version(candidate.Version.Major, candidate.Version.Minor,
             Math.Max(candidate.Version.Build, 0), Math.Max(candidate.Version.Revision, 0));
-        if (version != expected || product.ProductName != "Tabrilo")
+        var identity = Desktop.InstallIdentity;
+        if (version != expected || product.ProductName != "Tabrilo" ||
+            product.FileDescription != $"{identity} Windows x64 {channel.Flavor} installer")
             throw new InvalidDataException("The signed installer identity or version differs from the update feed.");
     }
 
-    private bool IsCompatible(UpdateCandidate candidate) => candidate.Version > current &&
+    private bool IsCompatible(UpdateCandidate candidate) => candidate.Version > current && candidate.Flavor == channel.Flavor &&
         candidate.MinimumSystem <= system && candidate.Length is > 0 and <= MaximumInstaller &&
         SameOrigin(candidate.Installer, installerOrigin) &&
         TryTrustedHttps(candidate.Installer.AbsoluteUri, out _);
 
     private async Task Download(Uri uri, Stream output, long maximum, long? expected, CancellationToken token, Uri? redirectOrigin = null)
     {
-        using var initial = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token);
+        using var idle = CancellationTokenSource.CreateLinkedTokenSource(token);
+        idle.CancelAfter(TimeSpan.FromSeconds(90));
+        using var initial = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, idle.Token);
         using var redirected = (int)initial.StatusCode is 301 or 302 or 307 or 308 && redirectOrigin is not null &&
             initial.Headers.Location is { IsAbsoluteUri: true } location &&
             TryTrustedHttps(location.AbsoluteUri, out var redirectedUri) && SameOrigin(redirectedUri, redirectOrigin)
-                ? await client.GetAsync(redirectedUri, HttpCompletionOption.ResponseHeadersRead, token) : null;
+                ? await client.GetAsync(redirectedUri, HttpCompletionOption.ResponseHeadersRead, idle.Token) : null;
         var response = redirected ?? initial;
         response.EnsureSuccessStatusCode();
         var declared = response.Content.Headers.ContentLength;
@@ -168,8 +222,9 @@ internal sealed class Updates : IDisposable
         var buffer = new byte[65536];
         long received = 0;
         int size;
-        while ((size = await input.ReadAsync(buffer.AsMemory(), token)) > 0)
+        while ((size = await input.ReadAsync(buffer.AsMemory(), idle.Token)) > 0)
         {
+            idle.CancelAfter(TimeSpan.FromSeconds(90));
             received += size;
             if (received > maximum || received > expected) throw new InvalidDataException("The update exceeded its size limit.");
             await output.WriteAsync(buffer.AsMemory(0, size), token);
@@ -193,8 +248,10 @@ internal sealed class Updates : IDisposable
     private static UpdateChannel ReadChannel()
     {
         using var stream = typeof(Updates).Assembly.GetManifestResourceStream("Tabrilo.Updates.json")!;
-        return JsonSerializer.Deserialize<UpdateChannel>(stream, JsonSerializerOptions.Web)
+        var channel = JsonSerializer.Deserialize<UpdateChannel>(stream, JsonSerializerOptions.Web)
             ?? throw new InvalidDataException("The update channel configuration is empty.");
+        var flavor = App.Metadata("Flavor");
+        return channel with { Flavor = flavor, Feed = channel.Feed?.Replace("{flavor}", flavor, StringComparison.Ordinal) };
     }
 
     public void Dispose() => client.Dispose();

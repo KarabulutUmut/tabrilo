@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
 using System.Windows;
 using System.Windows.Controls;
 using Tabrilo.Core;
@@ -15,7 +17,7 @@ internal sealed class JobResults : IDisposable
     private readonly Window window;
     private Window? notice;
 
-    private void Notify(string text, string button, Action click, string? output = null)
+    private void Notify(System.Drawing.Rectangle area, string text, string button, Action click, string? output = null)
     {
         notice?.Close();
         var panel = new StackPanel { Margin = new Thickness(12) };
@@ -25,14 +27,30 @@ internal sealed class JobResults : IDisposable
         if (output != null) buttons.Children.Add(Controls.Button("Reveal", () => Desktop.Reveal(output)));
         buttons.Children.Add(Controls.Button("Dismiss", () => notice?.Close()));
         panel.Children.Add(buttons);
-        var area = SystemParameters.WorkArea;
         var popup = new Window { Title = "Tabrilo", Content = panel, Width = 340, SizeToContent = SizeToContent.Height,
             WindowStyle = WindowStyle.ToolWindow, ResizeMode = ResizeMode.NoResize, Topmost = true, ShowActivated = false,
-            ShowInTaskbar = false, Left = Math.Max(area.Left, area.Right - 350), Top = Math.Max(area.Top, area.Bottom - 155) };
+            ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual };
         notice = popup;
+        popup.SourceInitialized += (_, _) => Place();
+        popup.ContentRendered += (_, _) => Place();
         popup.Closed += (_, _) => { if (notice == popup) notice = null; };
         popup.Show();
+
+        void Place()
+        {
+            var handle = new WindowInteropHelper(popup).Handle;
+            if (GetWindowRect(handle, out var bounds))
+                SetWindowPos(handle, IntPtr.Zero, Math.Max(area.Left, area.Right - (bounds.Right - bounds.Left) - 12),
+                    Math.Max(area.Top, area.Bottom - (bounds.Bottom - bounds.Top) - 12), 0, 0, 0x0015);
+        }
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Bounds { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr handle, out Bounds bounds);
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr handle, IntPtr after, int x, int y, int width, int height, uint flags);
 
     public JobResults()
     {
@@ -50,15 +68,16 @@ internal sealed class JobResults : IDisposable
 
     public bool Owns(Window candidate) => ReferenceEquals(window, candidate);
 
-    public JobView Start(string label, Action cancel)
+    public JobView Start(string label, Action cancel, System.Drawing.Rectangle workArea, bool move)
     {
         foreach (var previous in jobs.Children.OfType<Expander>()) previous.IsExpanded = false;
         var details = new StackPanel { Margin = new Thickness(8) };
         var entry = new Expander { Header = label, IsExpanded = true, Content = details, Margin = new Thickness(0, 4, 0, 6) };
         jobs.Children.Insert(0, entry);
         while (jobs.Children.Count > 50) jobs.Children.RemoveAt(50);
-        Notify(label + "…", "Cancel", cancel);
-        return new JobView(this, entry, details, label, cancel);
+        var cancelLabel = move ? "Stop queued items" : "Cancel";
+        Notify(workArea, move ? "Move · Use the Windows transfer dialog to cancel an active transfer." : label + "…", cancelLabel, cancel);
+        return new JobView(this, entry, details, label, cancel, workArea, cancelLabel);
     }
 
     private void Hide(object? sender, CancelEventArgs args)
@@ -83,18 +102,21 @@ internal sealed class JobResults : IDisposable
         private readonly TextBlock status = Controls.Text("Starting…", 13, true);
         private readonly ProgressBar bar = new() { Height = 5, Margin = new Thickness(0, 5, 0, 10), IsIndeterminate = true };
         private readonly Button stop;
+        private readonly System.Drawing.Rectangle workArea;
         private bool finished;
         public string? Summary { get; private set; }
 
-        public JobView(JobResults owner, Expander entry, Panel panel, string label, Action cancel)
+        public JobView(JobResults owner, Expander entry, Panel panel, string label, Action cancel, System.Drawing.Rectangle workArea,
+            string cancelLabel)
         {
             this.owner = owner;
+            this.workArea = workArea;
             this.entry = entry;
             this.panel = panel;
             this.label = label;
             panel.Children.Add(status);
             panel.Children.Add(bar);
-            stop = Controls.Button("Cancel", () => { status.Text = "Cancelling…"; cancel(); stop!.IsEnabled = false; });
+            stop = Controls.Button(cancelLabel, () => { status.Text = "Stop requested…"; cancel(); stop!.IsEnabled = false; });
             panel.Children.Add(stop);
         }
 
@@ -115,7 +137,7 @@ internal sealed class JobResults : IDisposable
             entry.Header = $"{label} · {summary}";
             panel.Children.Clear();
             write?.Invoke(panel);
-            owner.Notify(label + " · " + summary, "Details", owner.Open, output);
+            owner.Notify(workArea, label + " · " + summary, "Details", owner.Open, output);
             panel.Children.Add(Controls.Button("Dismiss", () =>
             {
                 owner.jobs.Children.Remove(entry);

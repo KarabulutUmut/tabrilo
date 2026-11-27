@@ -14,7 +14,7 @@ Use a separate per-user test identity and installation directory.
 param(
     [ValidateSet('Debug','Release')] [string] $Configuration = 'Release',
     [ValidatePattern('^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})$')] [string] $Version,
-    [switch] $IncludeOffice, [switch] $PayloadOnly, [switch] $IsolatedTest, [switch] $Help
+    [switch] $IncludeOffice, [switch] $PayloadOnly, [switch] $IsolatedTest, [string] $IsolatedPublicKey, [ValidatePattern('^Tabrilo-Isolated(-[a-f0-9]{12})?$')] [string] $IsolatedId = 'Tabrilo-Isolated', [switch] $Help
 )
 if ($Help) { Get-Help $PSCommandPath; exit 0 }
 . "$PSScriptRoot/common.ps1"
@@ -26,6 +26,12 @@ try {
     if (!(Test-Path -LiteralPath $qpdf)) { throw 'Restore qpdf with scripts/restore-tools.ps1.' }
     if (!$PayloadOnly -and !(Test-Path -LiteralPath $nsis)) { throw 'Restore NSIS with scripts/restore-tools.ps1 -Installer.' }
     $channel = if ($IsolatedTest) { 'isolated-test' } else { 'local' }
+    $flavor = if ($IncludeOffice) { 'office' } else { 'core' }
+    if ($IsolatedPublicKey -and (!$IsolatedTest -or [Convert]::FromBase64String($IsolatedPublicKey).Length -ne 32)) {
+        throw 'Supply a 32-byte public test key only for an isolated installation.'
+    }
+    $commit = git -C $TabriloRoot rev-parse HEAD
+    if ($LASTEXITCODE -or $commit -cnotmatch '^[0-9a-f]{40}$') { throw 'A source commit is required.' }
     $run = [DateTimeOffset]::UtcNow.ToString('yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
     $output = Join-Path $TabriloRoot "artifacts/package/$channel/$Version/$run"
     $payload = Join-Path $output 'payload'
@@ -33,7 +39,9 @@ try {
     Invoke-TabriloDotnet @('restore', $TabriloProjects.Solution, '--locked-mode')
     Invoke-TabriloDotnet @('publish', $TabriloProjects.App, '-c', $Configuration, '-r', 'win-x64',
         '--self-contained', 'true', '-p:PublishTrimmed=false', '--no-restore', "-p:Version=$Version",
-        "-p:TabriloInstallIdentity=$(if ($IsolatedTest) {'Tabrilo-Isolated'} else {'Tabrilo'})", '-o', $payload)
+        "-p:TabriloFlavor=$flavor", "-p:TabriloChannel=$channel", "-p:SourceRevisionId=$commit",
+        "-p:TabriloIsolatedPublicKey=$IsolatedPublicKey",
+        "-p:TabriloInstallIdentity=$(if ($IsolatedTest) {$IsolatedId} else {'Tabrilo'})", '-o', $payload)
 
     if ($IncludeOffice) {
         $msi = Join-Path $TabriloRoot '.tools/LibreOffice_26.8.3.msi'
@@ -50,6 +58,9 @@ try {
     }
 
     $licenses = Join-Path $payload 'licenses'
+    [ordered]@{ schemaVersion = 1; os = 'windows'; architecture = 'x64'; minimumBuild = 19041
+        channel = $channel; version = $Version; flavor = $flavor; sourceCommit = $commit
+        build = $run } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $payload 'package-identity.json')
     $null = New-Item -ItemType Directory -Path $licenses
     Copy-Item -LiteralPath (Join-Path $TabriloRoot 'LICENSE'),(Join-Path $TabriloRoot 'THIRD_PARTY_NOTICES.txt') -Destination $licenses
     Copy-Item -LiteralPath (Join-Path $TabriloRoot 'packaging/licenses') -Destination (Join-Path $licenses 'Upstream') -Recurse
@@ -77,7 +88,7 @@ try {
     if ($PayloadOnly) { exit 0 }
 
     . "$PSScriptRoot/compile-installer.ps1"
-    $kind = if ($IsolatedTest) { 'Tabrilo-Isolated' } else { 'Tabrilo' }
+    $kind = if ($IsolatedTest) { $IsolatedId } else { 'Tabrilo' }
     New-TabriloInstaller $payload $output $Version $kind $IncludeOffice.IsPresent
     exit 0
 } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }
