@@ -41,6 +41,7 @@ var checks = new (string Name, Func<Task> Run)[]
     ("Archive path, size and disk limits", ArchiveGuards),
     ("Extraction stage identity through rollback", StageOwnership),
     ("Move validation and per-item cancellation", MoveOutcomes),
+    ("Windows PowerShell terminal directory and module search", TerminalLaunch),
     ("Image PDF encoding and indirect PDF navigation", PdfRepresentations),
     ("PDF properties, structural edits and WinRT render", PdfRewrite),
     ("Wheel modes and PDF navigation", ThreeWheel),
@@ -399,6 +400,31 @@ Task MoveOutcomes()
     Require(FileActions.Move([source], target, default).Single().Output is { } moved &&
         Directory.Exists(Path.Combine(moved, "child")), "folder move after error");
     return Task.CompletedTask;
+}
+
+async Task TerminalLaunch()
+{
+    var dir = Folder("Terminal Grüße & spaces");
+    var previous = Environment.GetEnvironmentVariable("PSModulePath");
+    var injected = Path.Combine(dir, "launcher-only");
+    ProcessStartInfo start;
+    try
+    {
+        Environment.SetEnvironmentVariable("PSModulePath", injected);
+        start = FileActions.TerminalStart(dir);
+    }
+    finally { Environment.SetEnvironmentVariable("PSModulePath", previous); }
+    start.CreateNoWindow = true;
+    start.RedirectStandardOutput = true;
+    start.ArgumentList.Add("-NonInteractive");
+    start.ArgumentList.Add("-Command");
+    start.ArgumentList.Add("[Console]::OutputEncoding = [Text.Encoding]::UTF8; (Get-Location).Path; $env:PSModulePath");
+    start.StandardOutputEncoding = Encoding.UTF8;
+    using var process = Process.Start(start)!;
+    var output = await process.StandardOutput.ReadToEndAsync();
+    await process.WaitForExitAsync();
+    Require(process.ExitCode == 0 && output.Split('\n')[0].Trim() == dir && !output.Contains(injected),
+        "native shell starts in selected folder without the launcher module directory");
 }
 
 async Task PdfRepresentations()

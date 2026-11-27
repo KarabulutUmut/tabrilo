@@ -56,8 +56,7 @@ internal sealed class FileActions : IDisposable
                     return () => (string)field.SelectedItem;
                 }, "Open", 245);
                 if (dir is null) return "Cancelled";
-                var terminal = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
-                Process.Start(new ProcessStartInfo(terminal) { WorkingDirectory = dir, UseShellExecute = true, ArgumentList = { "-NoProfile" } });
+                using (Process.Start(TerminalStart(dir))) { }
                 return "Terminal opened";
             case "action.move":
                 var picker = new OpenFolderDialog { Title = "Move selected items to" };
@@ -153,6 +152,21 @@ internal sealed class FileActions : IDisposable
                 : reason, stopped, transferStarted ? destination : null);
         }
         return results;
+    }
+
+    internal static ProcessStartInfo TerminalStart(string directory)
+    {
+        var terminal = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
+        var start = new ProcessStartInfo(terminal) { WorkingDirectory = directory, UseShellExecute = false };
+        start.ArgumentList.Add("-NoProfile");
+        // A launcher running PowerShell 7 can prepend its private modules to the process
+        // environment. Start Windows PowerShell with the user's persistent module paths.
+        var paths = new[] { EnvironmentVariableTarget.User, EnvironmentVariableTarget.Machine }
+            .Select(scope => Environment.GetEnvironmentVariable("PSModulePath", scope)).Where(value => !string.IsNullOrWhiteSpace(value));
+        var configured = string.Join(Path.PathSeparator, paths);
+        if (configured.Length == 0) start.Environment.Remove("PSModulePath");
+        else start.Environment["PSModulePath"] = configured;
+        return start;
     }
 
     private static string FinalDirectory(string path)
