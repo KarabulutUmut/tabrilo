@@ -33,10 +33,13 @@ public static class DesktopContrast {
 }
 $started = Get-Date
 try {
-    Invoke-TabriloDotnet @('run','--project','tests/windows/Tabrilo.DesktopTests','-c','Release','--no-build','--',$imagePath,$pdf)
-    if ($HostedHighContrast) {
-        $report = Get-ChildItem "$TabriloRoot/artifacts/tests/*/desktop.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if (!$report -or !(Get-Content $report.FullName -Raw | ConvertFrom-Json).highContrast) { throw 'WPF did not observe system high contrast.' }
+    $repetitions = if ($HostedHighContrast) { 3 } else { 1 }
+    for ($index = 0; $index -lt $repetitions; $index++) {
+        Invoke-TabriloDotnet @('run','--project','tests/windows/Tabrilo.DesktopTests','-c','Release','--no-build','--',$imagePath,$pdf)
+        if ($HostedHighContrast) {
+            $report = Get-ChildItem "$TabriloRoot/artifacts/tests/*/desktop.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if (!$report -or !(Get-Content $report.FullName -Raw | ConvertFrom-Json).highContrast) { throw 'WPF did not observe system high contrast.' }
+        }
     }
 } catch {
     if ($HostedHighContrast) {

@@ -142,13 +142,6 @@ public static class Images
         return bytes;
     }
 
-    internal static ProcessedImage ProcessPngStream(Stream stream, ImageFormat format, CancellationToken token)
-    {
-        using var image = new MagickImage(stream, MagickFormat.Png);
-        CheckDimensions(image.Width, image.Height);
-        return Process(image, new ImageOptions(format), token);
-    }
-
     internal static async Task<ProcessedImage> ForPdfAsync(string path, CancellationToken token)
     {
         using var image = await ReadAsync(path, token);

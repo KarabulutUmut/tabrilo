@@ -161,10 +161,13 @@ public sealed class DesktopAcceptance(string picture, string document, string ev
         using (var fixture = new PdfSharp.Pdf.PdfDocument())
         {
             var page = fixture.AddPage();
-            page.Width = PdfSharp.Drawing.XUnit.FromPoint(72);
-            page.Height = PdfSharp.Drawing.XUnit.FromPoint(72);
+            page.Width = PdfSharp.Drawing.XUnit.FromPoint(864);
+            page.Height = PdfSharp.Drawing.XUnit.FromPoint(828);
             using (var graphics = PdfSharp.Drawing.XGraphics.FromPdfPage(page))
-                graphics.DrawRectangle(new PdfSharp.Drawing.XSolidBrush(PdfSharp.Drawing.XColor.FromArgb(40, 120, 185)), 0, 0, 72, 72);
+            {
+                graphics.DrawRectangle(new PdfSharp.Drawing.XSolidBrush(PdfSharp.Drawing.XColor.FromArgb(40, 120, 185)), 0, 0, 864, 828);
+                graphics.DrawRectangle(PdfSharp.Drawing.XBrushes.Red, 725, 725, 90, 90);
+            }
             fixture.Save(path);
         }
         using var document = await pdf.OpenForRenderingAsync(path, null, default);
@@ -177,6 +180,13 @@ public sealed class DesktopAcceptance(string picture, string document, string ev
         if (Math.Abs(pixel[0] - 185) > 2 || Math.Abs(pixel[1] - 120) > 2 || Math.Abs(pixel[2] - 40) > 2 || pixel[3] != 255)
             throw new InvalidDataException($"Desktop appearance changed the exported PDF color: {Convert.ToHexString(pixel)}.");
         Console.WriteLine($"PDF export BGRA={Convert.ToHexString(pixel)}, high contrast={SystemParameters.HighContrast}.");
+        if (bitmap.PixelWidth != 1152 || bitmap.PixelHeight != 1104) throw new IOException("Incorrect exported page geometry.");
+        foreach (var x in new[] { 1023, 1024 })
+        foreach (var y in new[] { 1023, 1024 })
+        {
+            bitmap.CopyPixels(new Int32Rect(x, y, 1, 1), pixel, 4, 0);
+            if (pixel is not [0, 0, 255, 255]) throw new IOException("PDF color or geometry changed at a tile boundary.");
+        }
     }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]

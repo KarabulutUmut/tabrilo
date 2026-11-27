@@ -262,16 +262,8 @@ public sealed partial class Pdfs(string qpdfPath)
         var width = checked((uint)Math.Max(1, Math.Round(source.Size.Width * dpi / 96.0)));
         var height = checked((uint)Math.Max(1, Math.Round(source.Size.Height * dpi / 96.0)));
         if ((long)width * height > 20_000_000) throw new InvalidDataException("The rendered page exceeds 20 megapixels.");
-        using var stream = new InMemoryRandomAccessStream();
-        await source.RenderToStreamAsync(stream, new PdfPageRenderOptions
-        {
-            DestinationWidth = width, DestinationHeight = height,
-            IsIgnoringHighContrast = true,
-            BitmapEncoderId = Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId
-        }).AsTask(token).ConfigureAwait(false);
-        stream.Seek(0);
-        using var net = stream.AsStreamForRead();
-        return Images.ProcessPngStream(net, format, token);
+        await source.PreparePageAsync().AsTask(token).ConfigureAwait(false);
+        return await PdfSurfaceRenderer.RenderAsync(source, width, height, format, token).ConfigureAwait(false);
     }, token);
 
     public async Task ValidateRenderedAsync(string path, CancellationToken token)

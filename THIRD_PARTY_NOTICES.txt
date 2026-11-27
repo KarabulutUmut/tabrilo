@@ -23,6 +23,10 @@ NSIS 3.13 installer code uses the licenses supplied in the NSIS COPYING file.
 The published self-contained .NET Desktop 10.0.15 runtime includes Microsoft and
 third-party components. See the upstream runtime license and third-party notices.
 Windows.Data.Pdf is a system component supplied by Windows.
+Vortice.Direct3D11, DirectX and DXGI 3.8.3 and Vortice.Mathematics 2.1.0
+provide managed bindings to Windows graphics APIs. SharpGen.Runtime and
+SharpGen.Runtime.COM 2.4.2-beta are the locked dependencies of those bindings.
+The three upstream MIT license texts accompany both editions.
 
 Optional local Office builds include LibreOffice 26.8.3 by The Document Foundation.
 See tools/office/license.txt, LICENSE.html, NOTICE and CREDITS.fodt for the

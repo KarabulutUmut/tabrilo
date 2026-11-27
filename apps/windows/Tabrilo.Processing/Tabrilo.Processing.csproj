@@ -12,5 +12,6 @@
     <PackageReference Include="System.IO.Hashing" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <PackageReference Include="ZXing.Net" />
+    <PackageReference Include="Vortice.Direct3D11" />
   </ItemGroup>
 </Project>
