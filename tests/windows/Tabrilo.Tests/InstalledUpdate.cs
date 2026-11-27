@@ -50,6 +50,24 @@ internal static class InstalledUpdate
             var original = InstalledExe(oldVersion);
             Require(File.Exists(original) && File.Exists(Path.Combine(Path.GetDirectoryName(original)!, "hostfxr.dll")),
                 "per-user old installation with the self-contained runtime");
+            var installedFolder = Path.GetDirectoryName(original)!;
+            var engine = Path.Combine(installedFolder, "tools", "office", "program", "soffice.com");
+            if (File.Exists(engine))
+            {
+                var pdf = new Tabrilo.Processing.Pdfs(Path.Combine(installedFolder, "tools", "qpdf", "qpdf.exe"));
+                var renderer = new Tabrilo.Processing.OfficeRenderer(engine, pdf);
+                foreach (var ext in new[] { "docx", "pptx" })
+                {
+                    await renderer.RenderAsync(Path.GetFullPath("tests/fixtures/layout." + ext), async path =>
+                    {
+                        using var document = await pdf.OpenForRenderingAsync(path, null, default);
+                        Require(document.PageCount == 2, "installed Office layout page count");
+                        await Tabrilo.Processing.Pdfs.RenderPageAsync(document, 2, 96, Tabrilo.Processing.ImageFormat.Png, default);
+                        return path;
+                    }, default);
+                }
+                Console.WriteLine("Installed Office engine rendered both two-page fixtures, including page two.");
+            }
             var export = Path.Combine(evidence, "preserved-export.txt");
             await File.WriteAllTextAsync(export, "synthetic export");
             var storage = new LocalState(Settings);
@@ -94,7 +112,7 @@ internal static class InstalledUpdate
             var elapsed = Stopwatch.StartNew();
             while ((File.Exists(upgraded) || File.Exists(original)) && elapsed.Elapsed < TimeSpan.FromSeconds(20))
                 await Task.Delay(100);
-            Require(!File.Exists(upgraded) && !File.Exists(original) && storage.Read().Appearance == "Dark" &&
+            Require(!File.Exists(upgraded) && !File.Exists(original) && !File.Exists(engine) && storage.Read().Appearance == "Dark" &&
                 File.ReadAllText(export) == "synthetic export", "uninstall preserved local state and exported file");
             Console.WriteLine($"Installed and removed isolated versions {oldVersion} and {newVersion} (signed test upgrade).");
 

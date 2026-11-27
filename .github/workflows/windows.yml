@@ -14,6 +14,34 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  installed-acceptance:
+    name: Clean Windows Office install and signed test upgrade
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-2025
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73
+        with:
+          global-json-file: global.json
+      - name: Build and exercise per-user installers on a fresh runner
+        shell: pwsh
+        run: |
+          ./scripts/restore-tools.ps1 -Installer
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ./scripts/test-installer.ps1
+          $office = (Get-Content -Raw shared/dependencies.json | ConvertFrom-Json).assets.office
+          Invoke-WebRequest $office.url -OutFile ".tools/LibreOffice_$($office.version).msi"
+          ./scripts/package.ps1 -Version 0.1.2 -IsolatedTest -IncludeOffice
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ./scripts/package.ps1 -Version 0.1.3 -IsolatedTest
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $old = (Get-ChildItem artifacts/package/isolated-test/0.1.2 -Recurse -Filter '*Setup.exe').FullName
+          $new = (Get-ChildItem artifacts/package/isolated-test/0.1.3 -Recurse -Filter '*Setup.exe').FullName
+          ./scripts/test.ps1 -Configuration Release -OldInstaller $old -NewInstaller $new
+
   test:
     name: Windows build and processing tests
     runs-on: windows-2025

@@ -76,32 +76,8 @@ try {
     Write-Output "Application: $(Join-Path $payload 'Tabrilo.exe')"
     if ($PayloadOnly) { exit 0 }
 
-    if ((& $nsis /VERSION) -ne 'v3.13') { throw 'The pinned NSIS compiler is not available.' }
-    Copy-Item -LiteralPath (Join-Path (Split-Path $nsis -Parent) 'COPYING') -Destination (Join-Path $licenses 'NSIS-COPYING.txt')
-    $files = Get-ChildItem -LiteralPath $payload -Recurse -File
-    $directories = Get-ChildItem -LiteralPath $payload -Recurse -Directory | Sort-Object { $_.FullName.Length } -Descending
-    $manifest = Join-Path $output 'Payload.nsh'
-    @(
-        '!macro RemovePayload ROOT'
-        foreach ($file in $files) {
-            $leaf = [IO.Path]::GetRelativePath($payload, $file.FullName)
-            '  Delete "${ROOT}\' + $leaf + '"'
-        }
-        foreach ($directory in $directories) {
-            $leaf = [IO.Path]::GetRelativePath($payload, $directory.FullName)
-            '  RMDir "${ROOT}\' + $leaf + '"'
-        }
-        '  RMDir "${ROOT}"'
-        '!macroend'
-    ) | Set-Content -LiteralPath $manifest -Encoding utf8
+    . "$PSScriptRoot/compile-installer.ps1"
     $kind = if ($IsolatedTest) { 'Tabrilo-Isolated' } else { 'Tabrilo' }
-    $installer = Join-Path $output "$kind-$Version-win-x64-Setup.exe"
-    $arguments = @('/V3', "/DPRODUCT_ID=$kind", "/DAPP_VERSION=$Version", "/DPAYLOAD=$payload",
-        "/DOUTPUT=$installer", "/DDELETE_MANIFEST=$manifest", (Join-Path $TabriloRoot 'packaging/windows/Tabrilo.nsi'))
-    & $nsis @arguments
-    if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $installer)) { throw "NSIS failed with exit $LASTEXITCODE." }
-    $digest = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
-    "$digest  $([IO.Path]::GetFileName($installer))" | Set-Content -LiteralPath "$installer.sha256" -Encoding ascii
-    Write-Output "Installer: $installer"
+    New-TabriloInstaller $payload $output $Version $kind $IncludeOffice.IsPresent
     exit 0
 } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }
