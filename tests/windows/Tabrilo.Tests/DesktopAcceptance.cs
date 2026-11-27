@@ -13,9 +13,10 @@ using Tabrilo.Windows;
 
 internal sealed class DesktopAcceptance(string picture, string document, string evidence) : Application
 {
-    internal static Task<int> RunAsync(string picture, string document, string evidence)
+    internal static int Run(string picture, string document, string evidence)
     {
-        var done = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Exception? failure = null;
+        var exitCode = 1;
         var thread = new Thread(() =>
         {
             try
@@ -28,13 +29,15 @@ internal sealed class DesktopAcceptance(string picture, string document, string 
                     markup.Element(ns + "Application.Resources")!.Elements());
                 app.Resources = (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(dictionary.ToString());
                 app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-                done.SetResult(app.Run());
+                exitCode = app.Run();
             }
-            catch (Exception ex) { done.SetException(ex); }
+            catch (Exception ex) { failure = ex; }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        return done.Task;
+        thread.Join();
+        if (failure != null) throw new InvalidOperationException("Desktop acceptance failed.", failure);
+        return exitCode;
     }
 
     protected override async void OnStartup(StartupEventArgs args)
@@ -157,9 +160,12 @@ internal sealed class DesktopAcceptance(string picture, string document, string 
             96, 96, PixelFormats.Pbgra32);
         var background = new DrawingVisual();
         using (var brush = background.RenderOpen())
-            brush.DrawRectangle(window.Background, null, new Rect(0, 0, visual.ActualWidth, visual.ActualHeight));
+        {
+            var client = new Rect(0, 0, visual.ActualWidth, visual.ActualHeight);
+            brush.DrawRectangle(window.Background, null, client);
+            brush.DrawRectangle(new VisualBrush(visual) { ViewboxUnits = BrushMappingMode.Absolute, Viewbox = client }, null, client);
+        }
         bitmap.Render(background);
-        bitmap.Render(visual);
         var png = new PngBitmapEncoder();
         png.Frames.Add(BitmapFrame.Create(bitmap));
         using var file = File.Create(Path.Combine(evidence, name + ".png"));

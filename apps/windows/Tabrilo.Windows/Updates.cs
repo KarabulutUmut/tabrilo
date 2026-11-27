@@ -141,6 +141,7 @@ internal sealed class Updates : IDisposable
             (string?)enclosure.Attribute("sha256") is not { Length: 64 } digest || !digest.All(Uri.IsHexDigit) ||
             (string?)item.Element(Sparkle + "channel") != channel.Channel ||
             !Version.TryParse((string?)enclosure.Attribute(Sparkle + "version"), out var version) ||
+            version.Build < 0 || version.Revision >= 0 ||
             !Version.TryParse((string?)item.Element(Sparkle + "minimumSystemVersion"), out var minimum) ||
             !TryTrustedHttps((string?)enclosure.Attribute("url"), out var installer) ||
             !SameOrigin(installer, installerOrigin) || !installer.AbsolutePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||

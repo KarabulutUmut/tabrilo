@@ -26,8 +26,21 @@ var repository = current?.FullName ?? throw new InvalidOperationException("Run f
 var evidence = Path.Combine(repository, "artifacts", "tests", DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Environment.ProcessId);
 Directory.CreateDirectory(evidence);
 if (args is ["--desktop", var picture, var document])
-    return await DesktopAcceptance.RunAsync(Path.GetFullPath(picture), Path.GetFullPath(document), evidence);
+    return DesktopAcceptance.Run(Path.GetFullPath(picture), Path.GetFullPath(document), evidence);
+if (args is ["--folder-transfer", var volumeRoot])
+{
+    await FolderTransfer.CancelAsync(evidence, volumeRoot);
+    return 0;
+}
 var qpdf = Path.Combine(repository, ".tools", "qpdf", "qpdf-12.4.2-msvc64", "bin", "qpdf.exe");
+if (args is ["--relinked-heic", var heicPath])
+{
+    var result = await Images.ProcessAsync(heicPath, new(ImageFormat.Png), default);
+    if (result.Width != 451 || result.Height != 461) throw new IOException("Replacement HEIC decoder returned the wrong dimensions.");
+    var output = await Images.SaveAsync(result, evidence, "decoded", default);
+    if (Decode(output).PixelWidth != 451) throw new IOException("Independent PNG decode failed.");
+    return 0;
+}
 Console.WriteLine($"Evidence directory {evidence}");
 var checks = new (string Name, Func<Task> Run)[]
 {
@@ -744,6 +757,12 @@ async Task UpdateTrust()
         Require(valid?.Version == new Version(0, 2, 0), "signed isolated appcast");
         await Expect<InvalidDataException>(() => updates.DownloadAsync(valid!, folder, default));
         Require(!Directory.EnumerateFiles(Path.Combine(folder, "Updates")).Any(), "incomplete download cleanup");
+        using var wrongSigner = new Updates(config, new Version(0, 1, 0), Environment.OSVersion.Version,
+            new Responses(new Dictionary<string, byte[]> { ["/setup.exe"] = bytes }));
+        var wrongSignature = valid! with { Signature = Convert.ToBase64String(new byte[64]) };
+        try { await wrongSigner.DownloadAsync(wrongSignature, folder, default); throw new Exception("Wrong installer signature accepted."); }
+        catch (InvalidDataException error) when (error.Message.Contains("strict signature")) { }
+        Require(!Directory.EnumerateFiles(Path.Combine(folder, "Updates")).Any(), "invalid installer signature cleanup");
         using var tampered = new Updates(config, new Version(0, 1, 0), new Version(10, 0, 19045),
             new Responses(new Dictionary<string, byte[]> { ["/appcast.xml"] = feed, ["/appcast.xml.signature"] = bad }));
         await Expect<InvalidDataException>(() => tampered.CheckAsync(default));
@@ -751,7 +770,8 @@ async Task UpdateTrust()
             new Responses(new Dictionary<string, byte[]> { ["/appcast.xml"] = feed, ["/appcast.xml.signature"] = signed }));
         Require(await downgrade.CheckAsync(default) is null, "refuse downgrade");
         foreach (var (field, replacement) in new[] { ("windows-x64", "macos-arm64"), ("flavor=\"core\"", "flavor=\"office\""),
-            ("10.0.19041", "99.0.1"), ($"length=\"{bytes.Length}\"", $"length=\"{Updates.MaximumInstaller + 1}\"") })
+            ("10.0.19041", "99.0.1"), ("version=\"0.2.0\"", "version=\"0.2\""),
+            ($"length=\"{bytes.Length}\"", $"length=\"{Updates.MaximumInstaller + 1}\"") })
         {
             var edited = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(feed).Replace(field, replacement));
             var proof = Encoding.ASCII.GetBytes(Convert.ToBase64String(Ed25519.Sign(edited, secret)));

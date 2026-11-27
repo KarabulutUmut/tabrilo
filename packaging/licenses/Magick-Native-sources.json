@@ -50,5 +50,224 @@
       "sha256": "7185A62F5C0DFD5622B54A0AB23486C473DECC750CC668EC9E2268B36EDE7E39"
     }
   ],
-  "relinkGate": "Need matching VS 2026 C++ toolchain, delegate sources and a demonstrated replacement rebuild for static Q8 x64."
+  "relinkGate": "Verify recipients can obtain the source and link inputs and run scripts/relink-magick.ps1 with Visual Studio 2026 C++ x64.",
+  "imageMagickCommit": "5d1bcc55f2c83bc2ff802118b7369756610f3ad4",
+  "dependenciesCommit": "8889f5cd9f0e0c1937a89350d95078d28a647a41",
+  "configureVersion": "2026.10.31.1239",
+  "configuration": [
+    "Release",
+    "Q8",
+    "x64",
+    "noHdri",
+    "noOpenMP"
+  ],
+  "inputs": [
+    {
+      "name": "windows-x64-static-noOpenMP-linked-runtime.zip",
+      "url": "https://github.com/ImageMagick/Dependencies/releases/download/2026.10.31.2057/windows-x64-static-noOpenMP-linked-runtime.zip",
+      "sha256": "b3a19fed12d8eee09f8e6ce8037ab08d44b8f1723b0f3bcf11e284024ab1aa8a"
+    },
+    {
+      "name": "Configure.Release.x64.exe",
+      "url": "https://github.com/ImageMagick/Configure/releases/download/2026.10.31.1239/Configure.Release.x64.exe",
+      "sha256": "30efdd7e625579bd86b6faa000417839f63590017a9a44c4a8e679a1883d0e1e"
+    },
+    {
+      "name": "files.zip",
+      "url": "https://github.com/ImageMagick/Configure/releases/download/2026.10.31.1239/files.zip",
+      "sha256": "fb561eb62105272f2aec0671c7206eea4788df0f069c21436214773dbf06c302"
+    }
+  ],
+  "delegateSources": [
+    {
+      "name": "aom",
+      "url": "https://github.com/ImageMagick/aom",
+      "revision": "949b2083094619a8cf6491938d47e6c4804ed108"
+    },
+    {
+      "name": "brotli",
+      "url": "https://github.com/ImageMagick/brotli",
+      "revision": "62877063ab55b3494bdee9d1239156754aed6413"
+    },
+    {
+      "name": "bzip2",
+      "url": "https://github.com/ImageMagick/bzip2",
+      "revision": "abffe764f875f71d051efb19d4c83139375f82d7"
+    },
+    {
+      "name": "de265",
+      "url": "https://github.com/ImageMagick/de265",
+      "revision": "5a0bf9f624d810de6af20e41ac3cfd92bf7de508"
+    },
+    {
+      "name": "exr",
+      "url": "https://github.com/ImageMagick/exr",
+      "revision": "85a96b21d3cdcae99fbea6f32f62eba9ca4a9fdd"
+    },
+    {
+      "name": "ffi",
+      "url": "https://github.com/ImageMagick/ffi",
+      "revision": "91982d4ac97b179dd1fb878caef2ed2847bc38b6"
+    },
+    {
+      "name": "freetype",
+      "url": "https://github.com/ImageMagick/freetype",
+      "revision": "c872866d7b45c6926d82a636c3f9055472e6c334"
+    },
+    {
+      "name": "glib",
+      "url": "https://github.com/ImageMagick/glib",
+      "revision": "ea0118ca0d408473d320b21262a1cdc6ce3e5f40"
+    },
+    {
+      "name": "heif",
+      "url": "https://github.com/ImageMagick/heif",
+      "revision": "498042a72e805c50e5e84b57e15327f3cfdf6a63"
+    },
+    {
+      "name": "highway",
+      "url": "https://github.com/ImageMagick/highway",
+      "revision": "e1a586af5be6358bb983ff608f9678a622209ca3"
+    },
+    {
+      "name": "imath",
+      "url": "https://github.com/ImageMagick/imath",
+      "revision": "1ec391453dd33f3432018d3a266e3d177a705235"
+    },
+    {
+      "name": "jpeg-turbo",
+      "url": "https://github.com/ImageMagick/jpeg-turbo",
+      "revision": "ea2dd9d26a47da90c87a3ab57f6ac7f85977be83"
+    },
+    {
+      "name": "jpeg-xl",
+      "url": "https://github.com/ImageMagick/jpeg-xl",
+      "revision": "8503118ff13ab8b11680296900da3361d6703dc1"
+    },
+    {
+      "name": "lcms",
+      "url": "https://github.com/ImageMagick/lcms",
+      "revision": "d261ab6fda30fd7578a2ce7ace5c0b2c7d3fc0b8"
+    },
+    {
+      "name": "lqr",
+      "url": "https://github.com/ImageMagick/lqr",
+      "revision": "a2e9e8b5b41bf0569f51482707a12d354a086f3a"
+    },
+    {
+      "name": "openjpeg",
+      "url": "https://github.com/ImageMagick/openjpeg",
+      "revision": "97ce1d10749b1a02d657eae491e80c572ca183b2"
+    },
+    {
+      "name": "openjph",
+      "url": "https://github.com/ImageMagick/openjph",
+      "revision": "c1a1ffc1e3f90eb9397407f1f545a47e01390aef"
+    },
+    {
+      "name": "png",
+      "url": "https://github.com/ImageMagick/png",
+      "revision": "1ccb8b78643c7ad5360f00719a1e952ce0be7a53"
+    },
+    {
+      "name": "raw",
+      "url": "https://github.com/ImageMagick/raw",
+      "revision": "71399d76efc3fa915bf3fb01ddede994b549a80a"
+    },
+    {
+      "name": "tiff",
+      "url": "https://github.com/ImageMagick/tiff",
+      "revision": "3021cd03440ba6954f8bdf2b7ad4557a36092cd8"
+    },
+    {
+      "name": "webp",
+      "url": "https://github.com/ImageMagick/webp",
+      "revision": "b981ef267195cb12f2cb97e4dd23e12a1323a4ce"
+    },
+    {
+      "name": "xml",
+      "url": "https://github.com/ImageMagick/xml",
+      "revision": "3ba73c8312b7ac88adc1a2e62df13d0827e93a0f"
+    },
+    {
+      "name": "zlib",
+      "url": "https://github.com/ImageMagick/zlib",
+      "revision": "e42706934e4e7564d960031ae62ff29d918ee06d"
+    },
+    {
+      "name": "zstd",
+      "url": "https://github.com/ImageMagick/zstd",
+      "revision": "4d5752ffeca8defb48ad744274f4f76b2866d71d"
+    },
+    {
+      "name": "cairo",
+      "url": "https://github.com/ImageMagick/cairo",
+      "revision": "4334da83d8f44abe5aab1a11956e3f8e6e58eac7"
+    },
+    {
+      "name": "croco",
+      "url": "https://github.com/ImageMagick/croco",
+      "revision": "178785cdc6faecad555a4e6fe4fda2b625046e8e"
+    },
+    {
+      "name": "fribidi",
+      "url": "https://github.com/ImageMagick/fribidi",
+      "revision": "a51f6765d9bfafab1f7bd3f5f507ccf1eac6be6b"
+    },
+    {
+      "name": "gdk-pixbuf",
+      "url": "https://github.com/ImageMagick/gdk-pixbuf",
+      "revision": "92a234886a0337480770ef93dc74ea920bf39ab3"
+    },
+    {
+      "name": "harfbuzz",
+      "url": "https://github.com/ImageMagick/harfbuzz",
+      "revision": "c77409b255cbce3e39210681dfad9ba93eadbcbe"
+    },
+    {
+      "name": "lzma",
+      "url": "https://github.com/ImageMagick/lzma",
+      "revision": "131e9a49425f51b8dd8710c57fbaa527baed3989"
+    },
+    {
+      "name": "openh264",
+      "url": "https://github.com/ImageMagick/openh264",
+      "revision": "8f7d29ca929a6b66682c0a5889a62a68c0cfa486"
+    },
+    {
+      "name": "pango",
+      "url": "https://github.com/ImageMagick/pango",
+      "revision": "0b1e4536e0005f3c36b523c17ea12322490efd45"
+    },
+    {
+      "name": "pixman",
+      "url": "https://github.com/ImageMagick/pixman",
+      "revision": "f7b55a8d3c39380724da9fbdef72ad70be800efc"
+    },
+    {
+      "name": "raqm",
+      "url": "https://github.com/ImageMagick/raqm",
+      "revision": "a699b8b7838acb4ac8d5891f42ecf3d84a00a9ad"
+    },
+    {
+      "name": "rsvg",
+      "url": "https://github.com/ImageMagick/rsvg",
+      "revision": "7415a6765db7554ba6f0f1b3dcb0877f36ff581b"
+    },
+    {
+      "name": "zip",
+      "url": "https://github.com/ImageMagick/zip",
+      "revision": "4fb2753af4c718080b62fbadda0e99fd9178ab6a"
+    },
+    {
+      "name": "jpeg-turbo-12",
+      "url": "https://github.com/ImageMagick/jpeg-turbo-12",
+      "revision": "e4c325c9f2ea22198174c14cfaec6982249f819d"
+    },
+    {
+      "name": "jpeg-turbo-16",
+      "url": "https://github.com/ImageMagick/jpeg-turbo-16",
+      "revision": "1048733eff5403a3a3610155b457ec54a548a1af"
+    }
+  ]
 }

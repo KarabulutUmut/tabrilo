@@ -471,14 +471,14 @@ public partial class MainWindow : Window
             { state.Status = "Update declined."; return; }
             state.Status = "Downloading and verifying update…";
             var installer = await updates.DownloadAsync(available, DataRoot, cancellation.Token);
-            if (MessageBox.Show(this, $"Install Tabrilo {available.Version} and close this window?", "Install update",
-                    MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
-            { File.Delete(installer); state.Status = "Update declined."; return; }
-            using var installation = await updates.StartInstallerAsync(available, installer, cancellation.Token, Updates.IsFixture);
-            job = null;
-            state.Status = "Finish Windows Setup to restart Tabrilo.";
             try
             {
+                if (MessageBox.Show(this, $"Install Tabrilo {available.Version} and close this window?", "Install update",
+                        MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+                { state.Status = "Update declined."; return; }
+                using var installation = await updates.StartInstallerAsync(available, installer, cancellation.Token, Updates.IsFixture);
+                job = null;
+                state.Status = "Finish Windows Setup to restart Tabrilo.";
                 await installation.WaitForExitAsync();
                 if (installation.ExitCode != 0) { state.Status = "Setup did not finish. You can retry the update."; return; }
                 var next = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs",

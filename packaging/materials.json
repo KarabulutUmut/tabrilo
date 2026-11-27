@@ -22,8 +22,9 @@
     "nsis": { "version": "3.13", "notices": "licenses/NSIS-COPYING.txt", "status": "recorded" },
     "libreoffice": {
       "version": "26.8.3.1", "sourceManifest": "licenses/Upstream/LibreOffice-sources.json",
+      "externalBuildInputs": "licenses/Upstream/LibreOffice-external.json",
       "notices": ["tools/office/LICENSE.html", "tools/office/license.txt", "tools/office/NOTICE", "tools/office/CREDITS.fodt"],
-      "status": "blocked", "required": "Supply recipients with the version-specific source manifest and confirm availability of external component sources listed by this build and their redistribution terms in LICENSE.html."
+      "status": "blocked", "required": "Provide durable recipient access to matching source and reconcile the shipped MSI components with LICENSE.html. The external inventory is the release build's pinned input superset, including optional and non-Windows inputs."
     }
   }
 }
