@@ -44,6 +44,7 @@ try {
         $events | Select-Object -First 6 TimeCreated,ProviderName,Message | Format-List | Out-Host
         $dump = Get-ChildItem -LiteralPath $dumpFolder -Filter '*.dmp' | Select-Object -First 1
         if ($dump) { & "$PSScriptRoot/inspect-desktop-crash.ps1" -Dump $dump.FullName }
+        else { & "$PSScriptRoot/inspect-desktop-crash.ps1" -Image $imagePath -Document $pdf }
         $inventory = Get-ChildItem "$TabriloRoot/artifacts/tests/*/modules.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
         if ($inventory) {
             $modules = Get-Content -Raw $inventory.FullName | ConvertFrom-Json
