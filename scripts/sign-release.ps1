@@ -23,6 +23,11 @@ try {
     }
     & "$PSScriptRoot/inspect-package.ps1" -Installer $setup.FullName
     if ($LASTEXITCODE) { throw 'Package inspection failed.' }
+    $review = Get-Content -Raw (Join-Path $setup.DirectoryName 'review.json') | ConvertFrom-Json
+    $bundledMaterials = Join-Path $setup.DirectoryName 'payload/licenses/materials.json'
+    if ((Get-FileHash $bundledMaterials).Hash -cne (Get-FileHash "$TabriloRoot/packaging/materials.json").Hash) {
+        throw 'The packaged material dispositions differ from the approved checkout.'
+    }
     if (!$env:TABRILO_WINDOWS_SIGN_SEED -or !$env:TABRILO_WINDOWS_SIGN_PFX -or
         !$env:TABRILO_WINDOWS_SIGN_PFX_PASSWORD -or !$env:TABRILO_WINDOWS_TIMESTAMP_SERVER) {
         throw 'The production Windows signing configuration is incomplete.'
@@ -65,6 +70,13 @@ try {
             $env:TABRILO_WINDOWS_SIGN_PFX_PASSWORD = $null
         }
         if (!$certificate.HasPrivateKey) { throw 'The Windows publisher certificate has no signing key.' }
+        $promotion = (New-Item -ItemType Directory -Force -Path "$TabriloRoot/artifacts/promotion/$ApprovedCommit").FullName
+        $destination = Join-Path $promotion ("signed-$Version-$($package.flavor)-" + [guid]::NewGuid().ToString('N'))
+        $stage = New-Item -ItemType Directory -Path "$destination.partial"
+        $setup = Copy-Item -LiteralPath $setup.FullName -Destination $stage.FullName -PassThru
+        if ((Get-FileHash -LiteralPath $setup.FullName).Hash -cne $review.sha256) {
+            throw 'The installer changed after inspection.'
+        }
         $options = @{ LiteralPath = $setup.FullName; Certificate = $certificate; HashAlgorithm = 'SHA256'
             TimestampServer = $env:TABRILO_WINDOWS_TIMESTAMP_SERVER }
         $result = Set-AuthenticodeSignature @options
@@ -98,7 +110,8 @@ try {
         $feedSignature | Set-Content -LiteralPath "$appcast.signature" -Encoding ascii
         $digest = (Get-FileHash -LiteralPath $setup.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         "$digest  $($setup.Name)" | Set-Content -LiteralPath "$($setup.FullName).sha256" -Encoding ascii
-        Write-Output 'Installer and Windows x64 appcast verified.'
+        [IO.Directory]::Move($stage.FullName, $destination)
+        Write-Output "Verified Windows signing output: $destination"
     } finally {
         if ($certificate) { $certificate.Dispose() }
         if ($expanded) { [Array]::Clear($expanded) }

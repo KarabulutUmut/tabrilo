@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "a9dd5f2edd541ecf025af62526d7d321e3872393",
+  "channel": "local",
+  "windows": "x64",
+  "version": "0.2.0",
+  "approval": "pending",
+  "qpdfCrt": {
+    "version": "14.51.36247.0",
+    "architecture": "x64",
+    "terms": "https://learn.microsoft.com/en-us/visualstudio/releases/2026/redistribution",
+    "package": "vc_runtimeMinimum_x64.msi",
+    "packageSHA256": "BAB5D0257E6A18A4A008E683442E3077B38172DD61AF3CB1C588B46724A714E2",
+    "publisher": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+    "cabSHA256": "6E8EE73933678C55973E83366E48E948B394C7A36743A36B7224C95DE979B13F",
+    "files": [
+      {
+        "file": "concrt140.dll",
+        "sha256": "54716F0738AF891F283D213B5C8D11B25896BB8EE3097D301EAE718560CF974E",
+        "packageEntry": "concrt140.dll_amd64"
+      },
+      {
+        "file": "msvcp140_1.dll",
+        "sha256": "206C931BF90FDAD8816DE3B5E2EF80B2BCAA9406C89ECC05FE6FDDFFE251E982",
+        "packageEntry": "msvcp140_1.dll_amd64"
+      },
+      {
+        "file": "msvcp140_2.dll",
+        "sha256": "D50D7883F20D1DC6191768D3746F52DD9CAC89C346FFAED5BE1F110C2F34A838",
+        "packageEntry": "msvcp140_2.dll_amd64"
+      },
+      {
+        "file": "msvcp140_atomic_wait.dll",
+        "sha256": "3D0CBFAA1BF3EECF5A3F4491D2960EE803CB994F30292C6ADC4A07C498F60E2B",
+        "packageEntry": "msvcp140_atomic_wait.dll_amd64"
+      },
+      {
+        "file": "msvcp140_codecvt_ids.dll",
+        "sha256": "8A65C7596EF2E6938731F5A1058E7E40145B6D97967CC649231A076B9A608D78",
+        "packageEntry": "msvcp140_codecvt_ids.dll_amd64"
+      },
+      {
+        "file": "msvcp140.dll",
+        "sha256": "7C26614E1D733892C2DEAC7E245CE115504B1D80592DD0A01B08E3E5A55F89CA",
+        "packageEntry": "msvcp140.dll_amd64"
+      },
+      {
+        "file": "vcruntime140_1.dll",
+        "sha256": "A7146C08F89FE5B04541AB507CDB59FF7B44534D4BA3C668A426C6450A03434E",
+        "packageEntry": "vcruntime140_1.dll_amd64"
+      },
+      {
+        "file": "vcruntime140.dll",
+        "sha256": "D1F4225DF2CD877DBF130D5668A021DCE3F94118455FF5EC952061C30AFC9CE7",
+        "packageEntry": "vcruntime140.dll_amd64"
+      }
+    ]
+  },
+  "codecReplacement": {
+    "nativeSource": "ce236bfba506817317517c3d6113b5566ecd03cd",
+    "replacementSource": "5a0bf9f624d810de6af20e41ac3cfd92bf7de508",
+    "sha256": "FC83444273632091443B50F7F5EC2D1C36E5D0BBDEF65DD7D4117631B513BE43",
+    "replacementMarker": true,
+    "heicDecode": true
+  },
+  "codecJob": "https://github.com/KarabulutUmut/tabrilo/actions/runs/46043161283/job/140655724949",
+  "libreOffice": {
+    "version": "26.8.3.1",
+    "upstreamMsiSHA256": "0e6918c273eabbdbbd800ee0dacbbf130a14c13c2e4cec861b06dd59e015bf94",
+    "administrativeMsiSHA256": "5671AD2E5EADC119CE76A219AE15688E22DF1FF94A0D21864E8BBE7C27F181CC",
+    "shippedOfficeFiles": 19424,
+    "matchedMsiFiles": 19423,
+    "alternateArm64Rows": 10,
+    "licenseHtmlSHA256": "B6BAB46903CB571ED658514C28EB420AA4B398443D8F64A65A229157F51A0E6B",
+    "upstreamLicenseHeadings": 236,
+    "verifiedSourceAndExternalArchives": 157,
+    "verifiedArchiveBytes": 1549304918,
+    "filesOutsideMsiInventory": [
+      "LibreOffice_26.8.3.msi"
+    ]
+  },
+  "externalConditions": [
+    "Provide durable recipient access to corresponding LibreOffice and codec materials.",
+    "Confirm Microsoft Visual Studio distributor entitlement and component terms.",
+    "Approve actual stable inputs and real signing, timestamp and edition-specific feed configuration."
+  ]
+}
