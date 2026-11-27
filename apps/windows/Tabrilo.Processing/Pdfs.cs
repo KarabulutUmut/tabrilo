@@ -240,7 +240,7 @@ public sealed partial class Pdfs(string qpdfPath)
 
     public async Task<PdfRenderSession> OpenForRenderingAsync(string path, string? password, CancellationToken token)
     {
-        var info = await InspectAsync(path, password, token);
+        var info = await InspectAsync(path, password, token).ConfigureAwait(false);
         if (info.Interactive) throw new NotSupportedException("This PDF contains actions or external references and cannot be rendered.");
         var file = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
         var stream = file.AsRandomAccessStream();
@@ -253,8 +253,8 @@ public sealed partial class Pdfs(string qpdfPath)
         catch { stream.Dispose(); throw; }
     }
 
-    public static async Task<ProcessedImage> RenderPageAsync(PdfRenderSession document, int page, int dpi,
-        ImageFormat format, CancellationToken token)
+    public static Task<ProcessedImage> RenderPageAsync(PdfRenderSession document, int page, int dpi,
+        ImageFormat format, CancellationToken token) => Task.Run(async () =>
     {
         if (page < 1 || page > document.PageCount || dpi is < 48 or > 300)
             throw new ArgumentException("An invalid page or resolution was selected.");
@@ -268,11 +268,11 @@ public sealed partial class Pdfs(string qpdfPath)
             DestinationWidth = width, DestinationHeight = height,
             IsIgnoringHighContrast = true,
             BitmapEncoderId = Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId
-        }).AsTask(token);
+        }).AsTask(token).ConfigureAwait(false);
         stream.Seek(0);
         using var net = stream.AsStreamForRead();
         return Images.ProcessPngStream(net, format, token);
-    }
+    }, token);
 
     public async Task ValidateRenderedAsync(string path, CancellationToken token)
     {
