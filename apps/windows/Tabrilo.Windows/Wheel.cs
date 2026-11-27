@@ -32,6 +32,7 @@ internal sealed class Wheel : Window
     private WheelMode mode;
     private readonly Canvas canvas = new() { Width = Diameter, Height = Diameter };
     private readonly List<Slot> slots = [];
+    private readonly List<Window> rejectionWindows = [];
     private readonly TextBlock hint;
     private string[] files;
     private readonly DropRelease completion = new();
@@ -80,7 +81,13 @@ internal sealed class Wheel : Window
         canvas.Children.Add(hint);
         canvas.Background = Brushes.Transparent;
         Content = new Viewbox { Child = canvas };
-        Closed += (_, _) => { closed = true; deadline.Stop(); };
+        Closed += (_, _) =>
+        {
+            closed = true;
+            deadline.Stop();
+            foreach (var window in rejectionWindows) window.Close();
+            rejectionWindows.Clear();
+        };
         deadline.Tick += (_, _) => Cancel();
         if (external)
         {
@@ -216,6 +223,8 @@ internal sealed class Wheel : Window
             if (files.Length == 0)
             {
                 files = received;
+                CoverExternalTargets();
+                if (closed) return;
                 Rebuild();
             }
             dragState = DragState.Acquired;
@@ -226,6 +235,41 @@ internal sealed class Wheel : Window
         foreach (var candidate in slots) Paint(candidate, candidate == slot);
         if (dragState == DragState.Acquired && slot is not null && (args.AllowedEffects & DragDropEffects.Copy) != 0)
             args.Effects = DragDropEffects.Copy;
+    }
+
+    // Only claim the desktop after OLE has supplied a supported file drag. Use physical
+    // monitor bounds, including taskbars, and keep the original wheel above these HWNDs.
+    private void CoverExternalTargets()
+    {
+        var wheelHandle = new WindowInteropHelper(this).Handle;
+        foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+        {
+            var surface = new Window
+            {
+                Title = "Tabrilo drag cancellation", ShowActivated = false, ShowInTaskbar = false,
+                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true,
+                Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), AllowDrop = true,
+                Topmost = true, Width = 1, Height = 1, Focusable = false
+            };
+            surface.DragEnter += Reject;
+            surface.DragOver += Reject;
+            surface.Drop += Reject;
+            rejectionWindows.Add(surface);
+            surface.Show();
+            var bounds = screen.Bounds;
+            if (!SetWindowPos(new WindowInteropHelper(surface).Handle, wheelHandle, bounds.X, bounds.Y,
+                    bounds.Width, bounds.Height, 0x0010))
+            {
+                Cancel();
+                return;
+            }
+        }
+
+        static void Reject(object sender, DragEventArgs args)
+        {
+            args.Effects = DragDropEffects.None;
+            args.Handled = true;
+        }
     }
 
     private void OnLeave(object sender, DragEventArgs args)

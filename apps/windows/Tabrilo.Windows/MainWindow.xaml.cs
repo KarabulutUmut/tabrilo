@@ -218,11 +218,16 @@ public partial class MainWindow : Window
         if (!external && paths.Length == 0) { state.Status = "Choose files before opening the wheel."; return; }
         var clipboard = external ? [] : state.Inputs.Where(item => item.Clipboard).Select(item => item.Path)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var menu = new Wheel(paths, preferences, mode, (id, received) =>
+        var menu = new Wheel(paths, preferences, mode, async (id, received) =>
         {
             if (state.Busy || quitting) return;
             var origin = external ? InvocationOrigin.ExplorerWheel : InvocationOrigin.KeyboardWheel;
-            _ = operations.RunAsync(id, received.Select(path => new OperationInput(path, clipboard.Contains(path))), origin);
+            try { await operations.RunAsync(id, received.Select(path => new OperationInput(path, clipboard.Contains(path))), origin); }
+            catch (Exception error)
+            {
+                MessageBox.Show($"Unexpected failure in {id} ({error.GetType().Name}). Check Job results before retrying.",
+                    "Tabrilo", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }, external);
         if (!external && IsVisible) menu.Owner = this;
         TrackWheel(menu);

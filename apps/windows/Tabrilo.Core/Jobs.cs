@@ -1,7 +1,8 @@
 namespace Tabrilo.Core;
 
 public sealed record JobProgress(int Completed, int Total, string Label);
-public sealed record FileOutcome(string Input, string? Output, string? Message = null, bool Cancelled = false);
+public sealed record FileOutcome(string Input, string? Output, string? Message = null, bool Cancelled = false,
+    string? InspectionDirectory = null);
 public sealed record BatchResult(IReadOnlyList<FileOutcome> Items)
 {
     public int Published => Items.Count(item => item.Output is not null);

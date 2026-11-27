@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -28,9 +29,10 @@ internal sealed class FileActions : IDisposable
     private IStorageItem[] shareItems = [];
     private readonly ObservableCollection<string> references = [];
 
-    public async Task<string> Execute(string id, string[] paths, Window? owner, CancellationToken token, Action<IReadOnlyList<FileOutcome>> publish)
+    public async Task<string> Execute(string id, string[] paths, Window? owner, CancellationToken token,
+        Action<IReadOnlyList<FileOutcome>> publish, Action? started = null)
     {
-        if (paths.Any(path => !File.Exists(path) && !Directory.Exists(path))) throw new IOException("A selected item is no longer available.");
+        if (id != "action.move" && paths.Any(path => !File.Exists(path) && !Directory.Exists(path))) throw new IOException("A selected item is no longer available.");
         switch (id)
         {
             case "action.path":
@@ -60,6 +62,7 @@ internal sealed class FileActions : IDisposable
                 var picker = new OpenFolderDialog { Title = "Move selected items to" };
                 if ((owner?.IsVisible == true ? picker.ShowDialog(owner) : picker.ShowDialog()) != true) return "Cancelled";
                 var destination = picker.FolderName;
+                started?.Invoke();
                 var completion = new TaskCompletionSource<List<FileOutcome>>(TaskCreationOptions.RunContinuationsAsynchronously);
                 var worker = new Thread(() =>
                 {
@@ -93,7 +96,8 @@ internal sealed class FileActions : IDisposable
         }
     }
 
-    private static List<FileOutcome> Move(string[] paths, string destination, CancellationToken token)
+    internal static List<FileOutcome> Move(string[] paths, string destination, CancellationToken token,
+        Action<FileOutcome>? completed = null)
     {
         var results = new List<FileOutcome>(paths.Length);
         var cancelled = false;
@@ -105,18 +109,63 @@ internal sealed class FileActions : IDisposable
                 continue;
             }
             var target = Path.Combine(destination, Path.GetFileName(Path.TrimEndingDirectorySeparator(path)));
+            var transferStarted = false;
             try
             {
+                var folder = Directory.Exists(path);
+                if (!folder && !File.Exists(path)) throw new FileNotFoundException("The selected item is no longer available.", path);
+                var parent = FinalDirectory(destination);
+                var source = FinalDirectory(folder ? path : Path.GetDirectoryName(path)!);
+                if (folder && (parent.Equals(source, StringComparison.OrdinalIgnoreCase) ||
+                    parent.StartsWith(Path.EndsInDirectorySeparator(source) ? source : source + Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase)))
+                    throw new IOException("Choose a destination outside the selected folder.");
                 if (File.Exists(target) || Directory.Exists(target)) throw new IOException("An item with that name already exists.");
-                if (Directory.Exists(path)) FileSystem.MoveDirectory(path, target, UIOption.AllDialogs, UICancelOption.ThrowException);
-                else FileSystem.MoveFile(path, target, UIOption.AllDialogs, UICancelOption.ThrowException);
+                if (Path.GetPathRoot(parent)!.Equals(Path.GetPathRoot(source), StringComparison.OrdinalIgnoreCase))
+                {
+                    if (folder) Directory.Move(path, target);
+                    else File.Move(path, target);
+                }
+                else if (folder)
+                {
+                    transferStarted = true;
+                    try { FileSystem.MoveDirectory(path, target, UIOption.AllDialogs, UICancelOption.ThrowException); }
+                    catch (InvalidOperationException error) { throw new IOException("Windows could not move the folder to this destination.", error); }
+                }
+                else
+                {
+                    transferStarted = true;
+                    FileSystem.MoveFile(path, target, UIOption.AllDialogs, UICancelOption.ThrowException);
+                }
                 results.Add(new(path, target, "Moved"));
             }
-            catch (OperationCanceledException) { cancelled = true; results.Add(new(path, null, "Move cancelled", true)); }
-            catch (Exception error) when (OperationCoordinator.IsOperationError(error)) { results.Add(new(path, null, error.Message)); }
+            catch (OperationCanceledException) { cancelled = true; results.Add(Incomplete("Move cancelled.", true)); }
+            catch (Exception error) when (OperationCoordinator.IsOperationError(error)) { results.Add(Incomplete(error.Message, false)); }
+            completed?.Invoke(results[^1]);
+
+            FileOutcome Incomplete(string reason, bool stopped) => new(path, null, transferStarted
+                ? $"{reason} Some items may have transferred. Inspect both {path} and {destination} before retrying."
+                : reason, stopped, transferStarted ? destination : null);
         }
         return results;
     }
+
+    private static string FinalDirectory(string path)
+    {
+        using var handle = CreateFileW(Path.GetFullPath(path), 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
+        var name = new StringBuilder(32768);
+        var size = handle.IsInvalid ? 0 : GetFinalPathNameByHandleW(handle, name, (uint)name.Capacity, 1);
+        if (size == 0 && !handle.IsInvalid) size = GetFinalPathNameByHandleW(handle, name, (uint)name.Capacity, 0);
+        if (size == 0 || size >= name.Capacity) throw new IOException("Windows could not resolve the selected folder.");
+        return Path.TrimEndingDirectorySeparator(name.ToString());
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern Microsoft.Win32.SafeHandles.SafeFileHandle CreateFileW(string name, uint access, uint share,
+        IntPtr security, uint creation, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern uint GetFinalPathNameByHandleW(Microsoft.Win32.SafeHandles.SafeFileHandle file,
+        StringBuilder path, uint capacity, uint flags);
 
     private void OnShare(DataTransferManager sender, DataRequestedEventArgs args)
     {

@@ -133,6 +133,8 @@ internal sealed class JobResults : IDisposable
                 {
                     Controls.Heading(content, System.IO.Path.GetFileName(result.Input), 14);
                     if (result.Message is { } message) content.Children.Add(Controls.Text(message, 13, true));
+                    if (result.InspectionDirectory is { } directory)
+                        content.Children.Add(Controls.Button("Inspect destination", () => Desktop.OpenResult(directory)));
                     if (result.Output is not { } output) continue;
                     content.Children.Add(Controls.Text(output, 12, true));
                     var actions = new WrapPanel();
