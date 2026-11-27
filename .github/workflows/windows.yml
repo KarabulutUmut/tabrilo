@@ -40,6 +40,12 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           ./scripts/test-installer.ps1
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $workspaceVolume = Get-Volume -FilePath (Get-Item ./Directory.Build.props).FullName
+          $other = Get-Volume | Where-Object { $_.DriveLetter -and $_.DriveType -eq 'Fixed' -and
+            $_.UniqueId -ne $workspaceVolume.UniqueId } | Select-Object -First 1
+          if ($other) {
+            $env:TABRILO_TEST_SECOND_VOLUME = New-Item -ItemType Directory -Path "$($other.DriveLetter):/Tabrilo-$env:GITHUB_RUN_ID" -Force
+          }
           if ('${{ matrix.old }}' -eq 'office' -or '${{ matrix.new }}' -eq 'office') {
             $office = (Get-Content -Raw shared/dependencies.json | ConvertFrom-Json).assets.office
             Invoke-WebRequest $office.url -OutFile ".tools/LibreOffice_$($office.version).msi"

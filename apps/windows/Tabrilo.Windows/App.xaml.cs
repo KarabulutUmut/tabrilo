@@ -29,6 +29,8 @@ public partial class App : Application
     {
         base.OnStartup(args);
 #if ISOLATED_ACCEPTANCE
+        if (args.Args is ["--isolated-feed", var isolatedFolder])
+            Updates.IsolatedFolder = Path.GetFullPath(isolatedFolder);
         if (args.Args is ["--exercise-installed-update", var feedDirectory])
         {
             ExerciseInstalledUpdate(feedDirectory);
@@ -43,13 +45,19 @@ public partial class App : Application
             return;
         }
         instance = new System.Threading.Mutex(true, @"Local\" + Desktop.InstallIdentity + "-Wheel", out var first);
+        if (!first && args.Args is ["--resume-update"])
+        {
+            try { first = instance.WaitOne(TimeSpan.FromSeconds(15)); }
+            catch (System.Threading.AbandonedMutexException) { first = true; }
+        }
         if (!first)
         {
             MessageBox.Show($"Quit the running Tabrilo instance from its tray menu, then open {BuildName}.", "Tabrilo already running");
             Shutdown(2);
             return;
         }
-        InputPaths = args.Args.Where(Path.IsPathFullyQualified).ToArray();
+        InputPaths = args.Args.Length > 0 && args.Args[0].StartsWith("--", StringComparison.Ordinal)
+            ? [] : args.Args.Where(Path.IsPathFullyQualified).ToArray();
         MainWindow = new MainWindow();
         MainWindow.Show();
     }

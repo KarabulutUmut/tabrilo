@@ -37,7 +37,7 @@ public sealed class OfficeRenderer(string? configured, Pdfs pdf)
             using var copy = File.Create(local);
             await source.CopyToAsync(copy, token);
         }
-        InspectPackage(local, extension, token);
+        await Task.Run(() => InspectPackage(local, extension, token), token);
         var profile = Directory.CreateDirectory(Path.Combine(root, "profile", "user"));
         await File.WriteAllTextAsync(Path.Combine(profile.FullName, "registrymodifications.xcu"), """
             <oor:items xmlns:oor="http://openoffice.org/2001/registry">
@@ -77,9 +77,11 @@ public sealed class OfficeRenderer(string? configured, Pdfs pdf)
         if (archive.Entries.Count > 6000 || archive.GetEntry(extension == ".docx" ? "word/document.xml" : "ppt/presentation.xml") is null)
             throw new InvalidDataException("Invalid or oversized Office package.");
         long bytes = 0;
+        var parts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in archive.Entries)
         {
             token.ThrowIfCancellationRequested();
+            if (!parts.Add(entry.FullName)) throw new InvalidDataException("The Office package has duplicate parts.");
             bytes = checked(bytes + entry.Length);
             if (bytes > 384L << 20 || entry.Length > 64L << 20)
                 throw new InvalidDataException("Office package content exceeds the render limit.");
@@ -88,17 +90,25 @@ public sealed class OfficeRenderer(string? configured, Pdfs pdf)
             if (entry.FullName.EndsWith(".bin", StringComparison.OrdinalIgnoreCase) && !printerSettings ||
                 entry.FullName.Contains("/embeddings/", StringComparison.OrdinalIgnoreCase))
                 throw new NotSupportedException("Embedded programs and binary Office objects are unsupported.");
-            if (!entry.FullName.EndsWith(".rels", StringComparison.OrdinalIgnoreCase)) continue;
+            var relationships = entry.FullName.EndsWith(".rels", StringComparison.OrdinalIgnoreCase);
+            if (!relationships && !entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)) continue;
             using var content = entry.Open();
             using var xml = XmlReader.Create(content, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit,
-                XmlResolver = null, MaxCharactersInDocument = 2_000_000 });
+                XmlResolver = null, MaxCharactersInDocument = relationships ? 2_000_000 : 64L << 20 });
             try
             {
                 while (xml.Read())
-                    if (xml.NodeType == XmlNodeType.Element && xml.LocalName == "Relationship" &&
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (xml.NodeType != XmlNodeType.Element) continue;
+                    if (relationships && xml.LocalName == "Relationship" &&
                         string.Equals(xml.GetAttribute("TargetMode"), "External", StringComparison.OrdinalIgnoreCase) &&
-                        xml.GetAttribute("Type")?.EndsWith("/hyperlink", StringComparison.Ordinal) != true)
+                        xml.GetAttribute("Type") is not ("http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
+                            or "http://purl.oclc.org/ooxml/officeDocument/relationships/hyperlink"))
                         throw new NotSupportedException("This document requires an external linked resource.");
+                    if (xml.LocalName is "altChunk" or "oleObject" or "OLEObject" or "control" or "ddeLink")
+                        throw new NotSupportedException("Linked content and embedded controls cannot be rendered offline.");
+                }
             }
             catch (XmlException) { throw new InvalidDataException("Invalid Office relationships."); }
         }

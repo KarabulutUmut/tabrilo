@@ -45,7 +45,7 @@ public partial class MainWindow : Window
             IsShortcut, SetBusy, status => state.Status = status, RecordOutputs);
         desktop = new(this, Quit, operations.ShowResults);
         desktop.Tray(preferences.UseTray);
-        drag = new(() => state.Busy ? [] : preferences.ModeKeys, (point, mode) =>
+        drag = new(() => quitting ? [] : preferences.ModeKeys, (point, mode) =>
         {
             if (wheel is { IsEnding: true } ending) ending.Close();
             if (wheel is { } existing) existing.Switch(mode);
@@ -209,19 +209,24 @@ public partial class MainWindow : Window
         var paths = Wheel.GetFiles(args.Data);
         if (!state.Busy && paths.Length > 0 && (args.AllowedEffects & DragDropEffects.Copy) != 0)
         { Add(paths); args.Effects = DragDropEffects.Copy; }
-        else args.Effects = DragDropEffects.None;
+        else
+        {
+            args.Effects = DragDropEffects.None;
+            if (!state.Busy) state.Status = "Choose local files or save the dragged items to a folder first.";
+        }
         args.Handled = true;
     }
 
     private void OpenWheel(string[] paths, DragGesture.NativePoint at, bool external = true, WheelMode mode = WheelMode.Convert)
     {
-        if (wheel is not null || state.Busy) return;
+        if (wheel is not null || quitting) return;
         if (!external && paths.Length == 0) { state.Status = "Choose files before opening the wheel."; return; }
         var clipboard = external ? [] : state.Inputs.Where(item => item.Clipboard).Select(item => item.Path)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var menu = new Wheel(paths, preferences, mode, async (id, received) =>
         {
-            if (state.Busy || quitting) return;
+            if (quitting) return;
+            if (state.Busy) { operations.ShowBusy(new(at.X, at.Y)); return; }
             var origin = external ? InvocationOrigin.ExplorerWheel : InvocationOrigin.KeyboardWheel;
             try { await operations.RunAsync(id, received.Select(path => new OperationInput(path, clipboard.Contains(path))), origin,
                 invocationPoint: new(at.X, at.Y)); }
@@ -289,7 +294,8 @@ public partial class MainWindow : Window
         target.Child = drop;
         panel.Children.Add(target);
         Controls.Heading(drop, "Drop files here", 18);
-        drop.Children.Add(Controls.Text("Drag files and tap Shift for formats, Ctrl for tools, or Alt for file actions.", secondary: true));
+        var modes = preferences.ModeKeys;
+        drop.Children.Add(Controls.Text($"While dragging, tap {modes[0]} for formats, {modes[1]} for tools, or {modes[2]} for file actions.", secondary: true));
         var buttons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         buttons.Children.Add(Controls.Button("Choose files…", () => _ = Dispatch("open"), true));
         buttons.Children.Add(Controls.Button("Paste", () => _ = Dispatch("paste")));
@@ -398,7 +404,7 @@ public partial class MainWindow : Window
         var startup = Controls.Checkbox(panel, "Launch at sign-in", preferences.StartAtLogin);
         Controls.Heading(panel, "Updates and about", 16);
         panel.Children.Add(Controls.Text(App.BuildName + " · " +
-            (Updates.Configured ? "Windows x64 stable" : "Update channel is unconfigured."), secondary: true));
+            (Updates.Configured ? App.Metadata("Channel") + " · Windows x64" : "Update channel is unconfigured."), secondary: true));
         var autoCheck = Controls.Checkbox(panel, "Check for updates on startup", preferences.CheckUpdatesOnStartup);
         autoCheck.IsEnabled = Updates.Configured;
         if (Updates.Configured) panel.Children.Add(Controls.Button("Check for updates…", () => _ = Dispatch("updates")));
@@ -444,6 +450,7 @@ public partial class MainWindow : Window
                 state.Status = "Preferences saved.";
             });
         }, true));
+        panel.Children.Add(Controls.Button("Quit Tabrilo", Quit));
         return panel;
     }
 
@@ -467,7 +474,21 @@ public partial class MainWindow : Window
             if (MessageBox.Show(this, $"Install Tabrilo {available.Version} and close this window?", "Install update",
                     MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
             { File.Delete(installer); state.Status = "Update declined."; return; }
-            using var installation = await updates.StartInstallerAsync(available, installer, cancellation.Token);
+            using var installation = await updates.StartInstallerAsync(available, installer, cancellation.Token, Updates.IsFixture);
+            job = null;
+            state.Status = "Finish Windows Setup to restart Tabrilo.";
+            try
+            {
+                await installation.WaitForExitAsync();
+                if (installation.ExitCode != 0) { state.Status = "Setup did not finish. You can retry the update."; return; }
+                var next = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs",
+                    Desktop.InstallIdentity, "versions", available.Version.ToString(3), "Tabrilo.exe");
+                if (!File.Exists(next)) { state.Status = "Setup closed before the new version was installed."; return; }
+                var restart = new System.Diagnostics.ProcessStartInfo(next) { UseShellExecute = false };
+                restart.ArgumentList.Add("--resume-update");
+                using var nextProcess = System.Diagnostics.Process.Start(restart);
+            }
+            finally { File.Delete(installer); }
             state.Busy = false;
             Quit();
         }

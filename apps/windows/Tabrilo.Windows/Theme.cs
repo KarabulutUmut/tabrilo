@@ -16,6 +16,8 @@ internal static class Theme
         using var stream = typeof(Theme).Assembly.GetManifestResourceStream("Tabrilo.Tokens.json")!;
         using var json = JsonDocument.Parse(stream);
         var palette = json.RootElement.GetProperty(dark ? "dark" : "light");
+        foreach (var entry in json.RootElement.GetProperty("wheel").EnumerateObject())
+            Application.Current.Resources["Wheel" + entry.Name] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(entry.Value.GetString()!));
         foreach (var entry in palette.EnumerateObject())
         {
             var color = (Color)ColorConverter.ConvertFromString(entry.Value.GetString()!);
@@ -27,7 +29,7 @@ internal static class Theme
                 ["Background"] = SystemColors.WindowColor, ["Surface"] = SystemColors.WindowColor,
                 ["Text"] = SystemColors.WindowTextColor, ["Secondary"] = SystemColors.WindowTextColor,
                 ["Accent"] = SystemColors.HighlightColor, ["OnAccent"] = SystemColors.HighlightTextColor,
-                ["Hover"] = SystemColors.HighlightColor, ["Border"] = SystemColors.WindowTextColor,
+                ["Hover"] = SystemColors.WindowColor, ["Border"] = SystemColors.WindowTextColor,
                 ["Error"] = SystemColors.WindowTextColor
             };
             foreach (var (key, color) in colors) Application.Current.Resources[key] = new SolidColorBrush(color);

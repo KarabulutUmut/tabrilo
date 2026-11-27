@@ -5,7 +5,7 @@ namespace Tabrilo.Core;
 public enum WheelMode { Convert, Tools, Actions }
 
 public sealed record WheelCatalog(int Version, string[] Bindings, double Diameter, double InnerRadius,
-    double OuterRadius, string[] Conversion, string[] Tools, string[] Actions, Dictionary<string, string> Symbols)
+    double OuterRadius, double HalfGapRadians, string[] Conversion, string[] Tools, string[] Actions, Dictionary<string, string> Symbols)
 {
     public static WheelCatalog Shared { get; } = Load();
 

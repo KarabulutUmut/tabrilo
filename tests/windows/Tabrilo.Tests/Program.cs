@@ -55,6 +55,13 @@ foreach (var (name, run) in checks)
     catch (Exception error) { failures++; Console.WriteLine($"FAIL {name}\n{error}"); }
 }
 var total = checks.Length;
+if (Environment.GetEnvironmentVariable("TABRILO_TEST_SECOND_VOLUME") is { Length: > 0 } volume)
+{
+    total++;
+    try { CrossVolumeMove(volume); Console.WriteLine("PASS distinct-volume Move and retry"); }
+    catch (Exception error) { failures++; Console.WriteLine($"FAIL distinct-volume Move\n{error}"); }
+}
+else Console.WriteLine("Coverage skipped: distinct-volume Move (TABRILO_TEST_SECOND_VOLUME).");
 if (Environment.GetEnvironmentVariable("TABRILO_TEST_OFFICE") is { Length: > 0 } engine)
 {
     total++;
@@ -418,6 +425,41 @@ Task MoveOutcomes()
     Require(FileActions.Move([source], target, default).Single().Output is { } moved &&
         Directory.Exists(Path.Combine(moved, "child")), "folder move after error");
     return Task.CompletedTask;
+}
+
+void CrossVolumeMove(string secondRoot)
+{
+    var source = Folder("cross-volume");
+    var first = Path.GetPathRoot(FileActions.FinalDirectory(source));
+    var second = Path.GetPathRoot(FileActions.FinalDirectory(secondRoot));
+    Require(first != null && second != null && first.StartsWith(@"\\?\Volume{") && second.StartsWith(@"\\?\Volume{") &&
+        !string.Equals(first, second, StringComparison.OrdinalIgnoreCase), "two distinct volume GUIDs required");
+    var destination = Directory.CreateDirectory(Path.Combine(secondRoot, $"Tabrilo-{Guid.NewGuid():N}")).FullName;
+    var data = "Cross-volume fixture"u8.ToArray();
+    var file = Path.Combine(source, "file.txt");
+    var tree = Directory.CreateDirectory(Path.Combine(source, "tree")).FullName;
+    var leaf = Path.Combine(tree, "leaf.txt");
+    File.WriteAllBytes(file, data);
+    File.WriteAllBytes(leaf, data);
+    var collision = Path.Combine(destination, "file.txt");
+    File.WriteAllText(collision, "existing");
+    Require(FileActions.Move([file], destination, default)[0].Output == null && File.ReadAllText(collision) == "existing" &&
+        File.ReadAllBytes(file).SequenceEqual(data), "collision preserved both files");
+    File.Delete(collision);
+    Require(FileActions.Move([tree], destination, new CancellationToken(true))[0].Cancelled && File.Exists(leaf),
+        "pre-transfer cancellation preserved tree");
+    using var stop = new CancellationTokenSource();
+    var outcomes = FileActions.Move([file, tree], destination, stop.Token, _ => stop.Cancel());
+    Require(outcomes[0].Output == collision && outcomes[1].Cancelled && File.ReadAllBytes(collision).SequenceEqual(data) &&
+        !File.Exists(file) && File.Exists(leaf), "partial transfer preserved queued source");
+    var moved = FileActions.Move([tree], destination, default)[0].Output;
+    Require(moved != null && File.ReadAllBytes(Path.Combine(moved, "leaf.txt")).SequenceEqual(data) && !Directory.Exists(tree),
+        "retry moved complete tree");
+    Console.WriteLine($"Verified Move between {first} and {second}");
+    File.Delete(collision);
+    File.Delete(Path.Combine(moved!, "leaf.txt"));
+    Directory.Delete(moved!);
+    Directory.Delete(destination);
 }
 
 async Task TerminalLaunch()

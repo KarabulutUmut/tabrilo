@@ -68,6 +68,9 @@ internal sealed class JobResults : IDisposable
 
     public bool Owns(Window candidate) => ReferenceEquals(window, candidate);
 
+    public void Busy(System.Drawing.Point point) => Notify(System.Windows.Forms.Screen.FromPoint(point).WorkingArea,
+        "Another operation is running. Finish it or cancel it before starting another.", "Jobs", Open);
+
     public JobView Start(string label, Action cancel, System.Drawing.Rectangle workArea, bool move)
     {
         foreach (var previous in jobs.Children.OfType<Expander>()) previous.IsExpanded = false;

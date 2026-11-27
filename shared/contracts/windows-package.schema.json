@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "os", "architecture", "channel", "version", "flavor", "sourceCommit", "build", "minimumBuild"],
+  "properties": {
+    "schemaVersion": { "const": 1 }, "os": { "const": "windows" }, "architecture": { "const": "x64" },
+    "minimumBuild": { "const": 19041 }, "channel": { "enum": ["local", "isolated-test", "stable"] },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "flavor": { "enum": ["core", "office"] }, "sourceCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "build": { "type": "string", "pattern": "^[0-9]{8}-[0-9]{6}-[a-f0-9]{8}$" }
+  }
+}

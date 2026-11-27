@@ -24,7 +24,9 @@ internal sealed record UpdateCandidate(Version Version, Version MinimumSystem, U
 
 internal sealed class Updates : IDisposable
 {
-    internal const long MaximumInstaller = 1L << 30;
+    private sealed record UpdateLimits(long MaximumInstallerBytes, int ConnectionSeconds, int InactivitySeconds, int OverallSeconds);
+    private static readonly UpdateLimits Limits = ReadLimits();
+    internal static long MaximumInstaller => Limits.MaximumInstallerBytes;
     private static readonly XNamespace Sparkle = "http://www.andymatuschak.org/xml-namespaces/sparkle";
     private static readonly UpdateChannel BuiltIn = ReadChannel();
     private readonly HttpClient client;
@@ -36,11 +38,19 @@ internal sealed class Updates : IDisposable
     private readonly Version system;
     private readonly UpdateChannel channel;
 
-    public static bool Configured => BuiltIn is { Version: 2, Feed: not null, InstallerOrigin: not null, PublicKey: not null };
-    public static Updates Open() => new(BuiltIn,
-        typeof(Updates).Assembly.GetName().Version!, Environment.OSVersion.Version);
+    public static bool Configured => IsFixture || App.Metadata("Channel") == "stable" &&
+        BuiltIn is { Version: 2, Feed: not null, InstallerOrigin: not null, PublicKey: not null };
+    public static Updates Open()
+    {
+#if ISOLATED_ACCEPTANCE
+        if (IsolatedFolder != null) return OpenIsolated(IsolatedFolder);
+#endif
+        return new(BuiltIn, typeof(Updates).Assembly.GetName().Version!, Environment.OSVersion.Version);
+    }
 
 #if ISOLATED_ACCEPTANCE
+    internal static string? IsolatedFolder { get; set; }
+    internal static bool IsFixture => IsolatedFolder != null;
     internal static Updates OpenIsolated(string folder)
     {
         const string origin = "https://tabrilo-install-test.invalid";
@@ -64,6 +74,8 @@ internal sealed class Updates : IDisposable
                 { Content = new StreamContent(File.OpenRead(Path.Combine(folder, file))) });
         }
     }
+#else
+    internal static bool IsFixture => false;
 #endif
 
     internal Updates(UpdateChannel channel, Version current, Version system, HttpMessageHandler? handler = null)
@@ -85,7 +97,7 @@ internal sealed class Updates : IDisposable
             installerRedirectOrigin = redirect;
         }
         verifier = new Ed25519Checker(SecurityMode.Strict, channel.PublicKey, null, true, 1 << 20);
-        client = new HttpClient(handler ?? new SocketsHttpHandler { AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(30) })
+        client = new HttpClient(handler ?? new SocketsHttpHandler { AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(Limits.ConnectionSeconds) })
         { Timeout = Timeout.InfiniteTimeSpan };
     }
 
@@ -149,7 +161,7 @@ internal sealed class Updates : IDisposable
             throw new IOException("Free disk space for the installer and 64 MiB of working space, then retry.");
         var path = Path.Combine(directory, $"Tabrilo-setup-{Guid.NewGuid():N}.exe");
         using var time = CancellationTokenSource.CreateLinkedTokenSource(token);
-        time.CancelAfter(TimeSpan.FromHours(2));
+        time.CancelAfter(TimeSpan.FromSeconds(Limits.OverallSeconds));
         try
         {
             await using (var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536,
@@ -200,14 +212,14 @@ internal sealed class Updates : IDisposable
     }
 
     private bool IsCompatible(UpdateCandidate candidate) => candidate.Version > current && candidate.Flavor == channel.Flavor &&
-        candidate.MinimumSystem <= system && candidate.Length is > 0 and <= MaximumInstaller &&
+        candidate.MinimumSystem <= system && candidate.Length > 0 && candidate.Length <= MaximumInstaller &&
         SameOrigin(candidate.Installer, installerOrigin) &&
         TryTrustedHttps(candidate.Installer.AbsoluteUri, out _);
 
     private async Task Download(Uri uri, Stream output, long maximum, long? expected, CancellationToken token, Uri? redirectOrigin = null)
     {
         using var idle = CancellationTokenSource.CreateLinkedTokenSource(token);
-        idle.CancelAfter(TimeSpan.FromSeconds(90));
+        idle.CancelAfter(TimeSpan.FromSeconds(Limits.InactivitySeconds));
         using var initial = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, idle.Token);
         using var redirected = (int)initial.StatusCode is 301 or 302 or 307 or 308 && redirectOrigin is not null &&
             initial.Headers.Location is { IsAbsoluteUri: true } location &&
@@ -224,7 +236,7 @@ internal sealed class Updates : IDisposable
         int size;
         while ((size = await input.ReadAsync(buffer.AsMemory(), idle.Token)) > 0)
         {
-            idle.CancelAfter(TimeSpan.FromSeconds(90));
+            idle.CancelAfter(TimeSpan.FromSeconds(Limits.InactivitySeconds));
             received += size;
             if (received > maximum || received > expected) throw new InvalidDataException("The update exceeded its size limit.");
             await output.WriteAsync(buffer.AsMemory(0, size), token);
@@ -252,6 +264,14 @@ internal sealed class Updates : IDisposable
             ?? throw new InvalidDataException("The update channel configuration is empty.");
         var flavor = App.Metadata("Flavor");
         return channel with { Flavor = flavor, Feed = channel.Feed?.Replace("{flavor}", flavor, StringComparison.Ordinal) };
+    }
+
+    private static UpdateLimits ReadLimits()
+    {
+        using var stream = typeof(Updates).Assembly.GetManifestResourceStream("Tabrilo.Capabilities.json")!;
+        using var json = JsonDocument.Parse(stream);
+        return json.RootElement.GetProperty("updates").Deserialize<UpdateLimits>(JsonSerializerOptions.Web)
+            ?? throw new InvalidDataException("Missing update download limits.");
     }
 
     public void Dispose() => client.Dispose();

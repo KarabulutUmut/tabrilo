@@ -169,7 +169,7 @@ internal sealed class FileActions : IDisposable
         return start;
     }
 
-    private static string FinalDirectory(string path)
+    internal static string FinalDirectory(string path)
     {
         using var handle = CreateFileW(Path.GetFullPath(path), 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
         var name = new StringBuilder(32768);

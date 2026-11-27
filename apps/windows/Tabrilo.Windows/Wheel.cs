@@ -19,12 +19,13 @@ internal sealed class Wheel : Window
     private static double Inner => WheelCatalog.Shared.InnerRadius;
     private static double Outer => WheelCatalog.Shared.OuterRadius;
     private int sectors = 6;
-    private static readonly Brush Disk = Brush("#19232D");
-    private static readonly Brush Segment = Brush("#253442");
-    private static readonly Brush Selected = Brush("#155D57");
-    private static readonly Brush Rim = Brush("#53697B");
-    private static readonly Brush Mint = Brush("#79EDDC");
-    private static readonly Brush Muted = Brush("#A0B0BF");
+    private static Brush Disk => Palette(nameof(Disk));
+    private static Brush Segment => Palette(nameof(Segment));
+    private static Brush Selected => Palette(nameof(Selected));
+    private static Brush Rim => Palette(nameof(Rim));
+    private static Brush Mint => Palette(nameof(Mint));
+    private static Brush Muted => Palette(nameof(Muted));
+    private static Brush Palette(string name) => (Brush)Application.Current.FindResource("Wheel" + name);
 
     private readonly bool external;
     private readonly Action<string, string[]> invoke;
@@ -191,7 +192,7 @@ internal sealed class Wheel : Window
     internal static Geometry Sector(int index, int sectors = 7)
     {
         var angle = -Math.PI / 2 + index * Math.Tau / sectors;
-        var half = Math.PI / sectors - .026;
+        var half = Math.PI / sectors - WheelCatalog.Shared.HalfGapRadians;
         var a = angle - half;
         var b = angle + half;
         var geometry = new StreamGeometry();
@@ -370,12 +371,6 @@ internal sealed class Wheel : Window
         args.Handled = true;
     }
 
-    private static Brush Brush(string color)
-    {
-        var value = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
-        value.Freeze();
-        return value;
-    }
 
     public void PositionAt(int x, int y)
     {

@@ -30,6 +30,7 @@ internal sealed class OperationCoordinator(
     public bool Busy => cancellation is not null;
     public void Cancel() => cancellation?.Cancel();
     public void ShowResults() => results.Open();
+    public void ShowBusy(System.Drawing.Point point) => results.Busy(point);
     public bool OwnsResults(Window candidate) => results.Owns(candidate);
     public void Dispose() { actions.Dispose(); results.Dispose(); }
 

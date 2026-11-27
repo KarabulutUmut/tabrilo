@@ -8,6 +8,7 @@
   "diameter": 328,
   "innerRadius": 53,
   "outerRadius": 162,
+  "halfGapRadians": 0.026,
   "conversion": [
     "convert.jpg",
     "convert.png",

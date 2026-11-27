@@ -23,8 +23,8 @@ internal sealed class ImageEditor : Window
     private sealed record Gesture(RegionRow Row, PixelRect Bounds, ImagePoint Start, int XEdge, int YEdge);
     private Gesture? gesture;
     private ImagePoint? gestureEnd;
-    private readonly Stack<EditState> undo = new();
-    private readonly Stack<EditState> redo = new();
+    private readonly EditHistory<EditState> undo = new();
+    private readonly EditHistory<EditState> redo = new();
     private Selection selection = new(null, [], []);
     private EditState? committed;
     private bool restoring;
@@ -634,7 +634,7 @@ internal sealed class ImageEditor : Window
     private void Undo() { Commit(); Restore(undo, redo); }
     private void Redo() => Restore(redo, undo);
 
-    private void Restore(Stack<EditState> source, Stack<EditState> destination)
+    private void Restore(EditHistory<EditState> source, EditHistory<EditState> destination)
     {
         if (!source.TryPop(out var value)) return;
         destination.Push(Snapshot());

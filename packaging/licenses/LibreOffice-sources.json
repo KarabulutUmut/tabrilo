@@ -1,0 +1,27 @@
+{
+  "version": "26.8.3.1",
+  "sourceCommit": "861effc5289d539f15c4c18d1ba8579ffd78728b",
+  "msiSha256": "0e6918c273eabbdbbd800ee0dacbbf130a14c13c2e4cec861b06dd59e015bf94",
+  "archives": [
+    {
+      "url": "https://download.documentfoundation.org/libreoffice/src/26.8.3/libreoffice-26.8.3.1.tar.xz",
+      "bytes": 303031904,
+      "sha256": "83006a81376988d04a73eaa4dcf44f6f12774a81fd763726406a831905a9de28"
+    },
+    {
+      "url": "https://download.documentfoundation.org/libreoffice/src/26.8.3/libreoffice-dictionaries-26.8.3.1.tar.xz",
+      "bytes": 62442836,
+      "sha256": "62652a9ff21dc04f76042c72034d6920db9b054d56b4fa72151d031daaa92164"
+    },
+    {
+      "url": "https://download.documentfoundation.org/libreoffice/src/26.8.3/libreoffice-help-26.8.3.1.tar.xz",
+      "bytes": 53513212,
+      "sha256": "efb82de9a87daa6bfdc4b3a9bb1c255476f21c6fe5cb8fb7bd6217e6082c72b8"
+    },
+    {
+      "url": "https://download.documentfoundation.org/libreoffice/src/26.8.3/libreoffice-translations-26.8.3.1.tar.xz",
+      "bytes": 236367940,
+      "sha256": "22c191a11907d1c449f27aa2ca976e02abdd98eaf59f823ecf8b35609bf838f0"
+    }
+  ]
+}

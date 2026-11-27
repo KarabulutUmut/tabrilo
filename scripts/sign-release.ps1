@@ -5,12 +5,24 @@ Authenticode-signs a reviewed Windows installer and produces a strictly signed a
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string] $Installer,
-    [Parameter(Mandatory)] [ValidatePattern('^\d+\.\d+\.\d+$')] [string] $Version
+    [Parameter(Mandatory)] [ValidatePattern('^\d+\.\d+\.\d+$')] [string] $Version,
+    [Parameter(Mandatory)] [ValidatePattern('^[a-f0-9]{40}$')] [string] $ApprovedCommit
 )
 . "$PSScriptRoot/common.ps1"
 
 try {
     if ($env:TABRILO_WINDOWS_RELEASE_ENABLED -ne 'true') { throw 'The reviewed Windows release environment is disabled.' }
+    $setup = Get-Item -LiteralPath $Installer
+    $package = Get-Content -Raw (Join-Path $setup.DirectoryName 'payload/package-identity.json') | ConvertFrom-Json
+    $materials = Get-Content -Raw "$TabriloRoot/packaging/materials.json" | ConvertFrom-Json -AsHashtable
+    if ($package.sourceCommit -cne $ApprovedCommit -or (git -C $TabriloRoot rev-parse HEAD) -cne $ApprovedCommit -or
+        (git -C $TabriloRoot status --porcelain) -or $package.flavor -notin 'core','office' -or $package.channel -ne 'stable' -or
+        $env:TABRILO_APPROVED_RELEASE_COMMIT -cne $ApprovedCommit) { throw 'An approved clean stable candidate is required.' }
+    foreach ($component in $materials['windows-x64'][$package.flavor]) {
+        if ($materials.components[$component].status -ne 'approved') { throw "Distribution gate is open for $component." }
+    }
+    & "$PSScriptRoot/inspect-package.ps1" -Installer $setup.FullName
+    if ($LASTEXITCODE) { throw 'Package inspection failed.' }
     if (!$env:TABRILO_WINDOWS_SIGN_SEED -or !$env:TABRILO_WINDOWS_SIGN_PFX -or
         !$env:TABRILO_WINDOWS_SIGN_PFX_PASSWORD -or !$env:TABRILO_WINDOWS_TIMESTAMP_SERVER) {
         throw 'The production Windows signing configuration is incomplete.'
@@ -26,7 +38,7 @@ try {
         throw 'Check the approved repository and installer origins.'
     }
     $setup = Get-Item -LiteralPath $Installer
-    if ($setup.Name -ne "Tabrilo-$Version-win-x64-Setup.exe" -or $setup.VersionInfo.ProductVersion -ne $Version) {
+    if ($setup.Name -ne "Tabrilo-$Version-win-x64-$($package.flavor)-Setup.exe" -or $setup.VersionInfo.ProductVersion -ne $Version) {
         throw 'The installer filename or embedded version is invalid.'
     }
 
@@ -64,7 +76,7 @@ try {
         if ($validator.VerifySignatureOfFile($signature, $setup.FullName).ToString() -ne 'Valid') {
             throw 'Strict installer signature verification failed.'
         }
-        $appcast = Join-Path $setup.DirectoryName 'appcast.xml'
+        $appcast = Join-Path $setup.DirectoryName "appcast-$($package.flavor).xml"
         $asset = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/windows-x64-v$Version/$($setup.Name)"
         @"
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
@@ -75,6 +87,7 @@ try {
       <sparkle:channel>stable</sparkle:channel>
       <sparkle:minimumSystemVersion>10.0.19041</sparkle:minimumSystemVersion>
       <enclosure url="$asset" type="application/octet-stream" length="$($setup.Length)"
+        flavor="$($package.flavor)" sha256="$((Get-FileHash -LiteralPath $setup.FullName).Hash)"
         sparkle:os="windows-x64" sparkle:version="$Version" sparkle:edSignature="$signature" />
     </item>
   </channel>

@@ -83,8 +83,8 @@ internal static class Dialogs
         var dialog = WindowFor(owner, title, layout, 750, 640);
         layout.Children.Add(Controls.Text(Workflows.AssemblyNotice, 13, true));
         var entries = new List<PdfPageChoice>(pages);
-        var undo = new Stack<PdfPageChoice[]>();
-        var redo = new Stack<PdfPageChoice[]>();
+        var undo = new EditHistory<PdfPageChoice[]>();
+        var redo = new EditHistory<PdfPageChoice[]>();
         const int pageSize = 6;
         var list = new ListBox { Height = 326, SelectionMode = SelectionMode.Extended };
         var grid = new FrameworkElementFactory(typeof(UniformGrid));
@@ -155,6 +155,7 @@ internal static class Dialogs
         {
             var indices = Selected();
             if (indices.Length == 0) return;
+            if (entries.Count + indices.Length > 2000) { status.Text = "Choose up to 2000 pages."; return; }
             Save();
             for (var i = indices.Length - 1; i >= 0; i--) entries.Insert(indices[i], entries[indices[i]]);
             Refresh(indices[0]);
@@ -206,7 +207,7 @@ internal static class Dialogs
 
         int[] Selected() => list.SelectedItems.Cast<PageRow>().Select(row => row.Index).Order().ToArray();
         void Save() { undo.Push(entries.ToArray()); redo.Clear(); }
-        void Restore(Stack<PdfPageChoice[]> from, Stack<PdfPageChoice[]> to)
+        void Restore(EditHistory<PdfPageChoice[]> from, EditHistory<PdfPageChoice[]> to)
         {
             if (!from.TryPop(out var old)) return;
             to.Push(entries.ToArray());
@@ -228,11 +229,15 @@ internal static class Dialogs
         }
         void Move(int direction)
         {
-            var at = list.SelectedItem is PageRow row ? row.Index : -1;
-            if (at < 0 || at + direction < 0 || at + direction >= entries.Count) return;
+            var indices = Selected();
+            if (indices.Length == 0 || indices[0] + direction < 0 || indices[^1] + direction >= entries.Count) return;
             Save();
-            (entries[at], entries[at + direction]) = (entries[at + direction], entries[at]);
-            Refresh(at + direction);
+            foreach (var at in direction < 0 ? indices : indices.Reverse())
+                (entries[at], entries[at + direction]) = (entries[at + direction], entries[at]);
+            Refresh(indices[0] + direction);
+            var selected = indices.Select(index => index + direction).ToHashSet();
+            foreach (var item in list.Items.Cast<PageRow>().Where(item => selected.Contains(item.Index)))
+                if (!list.SelectedItems.Contains(item)) list.SelectedItems.Add(item);
         }
     }
 

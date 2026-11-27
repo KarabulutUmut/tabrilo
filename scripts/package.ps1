@@ -14,7 +14,8 @@ Use a separate per-user test identity and installation directory.
 param(
     [ValidateSet('Debug','Release')] [string] $Configuration = 'Release',
     [ValidatePattern('^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})$')] [string] $Version,
-    [switch] $IncludeOffice, [switch] $PayloadOnly, [switch] $IsolatedTest, [string] $IsolatedPublicKey, [ValidatePattern('^Tabrilo-Isolated(-[a-f0-9]{12})?$')] [string] $IsolatedId = 'Tabrilo-Isolated', [switch] $Help
+    [switch] $IncludeOffice, [switch] $PayloadOnly, [switch] $StableCandidate, [switch] $IsolatedTest,
+    [string] $IsolatedPublicKey, [ValidatePattern('^Tabrilo-Isolated(-[a-f0-9]{12})?$')] [string] $IsolatedId = 'Tabrilo-Isolated', [switch] $Help
 )
 if ($Help) { Get-Help $PSCommandPath; exit 0 }
 . "$PSScriptRoot/common.ps1"
@@ -25,7 +26,14 @@ try {
     $nsis = Join-Path $TabriloRoot '.tools/nsis-unpacked/nsis-3.13/makensis.exe'
     if (!(Test-Path -LiteralPath $qpdf)) { throw 'Restore qpdf with scripts/restore-tools.ps1.' }
     if (!$PayloadOnly -and !(Test-Path -LiteralPath $nsis)) { throw 'Restore NSIS with scripts/restore-tools.ps1 -Installer.' }
-    $channel = if ($IsolatedTest) { 'isolated-test' } else { 'local' }
+    $channel = if ($IsolatedTest) { 'isolated-test' } elseif ($StableCandidate) { 'stable' } else { 'local' }
+    if ($StableCandidate) {
+        $trust = Get-Content "$TabriloRoot/shared/contracts/windows-update.json" -Raw | ConvertFrom-Json
+        if ($IsolatedTest -or $trust.feed -notmatch '^https://.+\{flavor\}' -or !$trust.publicKey -or
+            $trust.channel -ne 'stable' -or (git -C $TabriloRoot status --porcelain)) {
+            throw 'Stable candidates require a clean checkout and configured edition-specific HTTPS feeds and trust anchor.'
+        }
+    }
     $flavor = if ($IncludeOffice) { 'office' } else { 'core' }
     if ($IsolatedPublicKey -and (!$IsolatedTest -or [Convert]::FromBase64String($IsolatedPublicKey).Length -ne 32)) {
         throw 'Supply a 32-byte public test key only for an isolated installation.'
@@ -80,6 +88,8 @@ try {
         Get-ChildItem -LiteralPath $runtimeRoot -File | Where-Object Name -Match '^(license|third-party-notices)(\.|$)' |
             ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $licenses "$runtime-$($_.Name)") }
     }
+    . "$PSScriptRoot/package-materials.ps1"
+    Write-TabriloMaterials $payload $packages $lock $IncludeOffice.IsPresent
     if (!(Test-Path -LiteralPath (Join-Path $payload 'Tabrilo.exe')) -or
         !(Test-Path -LiteralPath (Join-Path $payload 'tools/qpdf/qpdf.exe'))) {
         throw 'The payload is incomplete.'

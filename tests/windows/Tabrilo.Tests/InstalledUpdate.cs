@@ -40,7 +40,9 @@ internal static class InstalledUpdate
         var export = Path.Combine(evidence, "preserved-export.txt");
         await File.WriteAllTextAsync(export, "synthetic export");
         var storage = new LocalState(Settings);
-        storage.Write(new Preferences { Appearance = "Dark", Recent = [new("Synthetic result", export, DateTimeOffset.Now)] });
+        var exerciseUi = Environment.GetEnvironmentVariable("TABRILO_TEST_UPDATE_UI") == "1";
+        storage.Write(new Preferences { Appearance = "Dark", UseTray = false, CheckUpdatesOnStartup = exerciseUi,
+            Recent = [new("Synthetic result", export, DateTimeOffset.Now)] });
 
         if (explicitSwitch)
         {
@@ -64,7 +66,8 @@ internal static class InstalledUpdate
             }
             await Exercise(false);
             File.Copy(newInstaller, setup, true);
-            await Exercise(true);
+            if (exerciseUi) await InstalledUpdateUi.Run(original, upgraded, workingFeed);
+            else await Exercise(true);
             File.Delete(setup);
 
             async Task Exercise(bool success)
@@ -96,6 +99,8 @@ internal static class InstalledUpdate
             File.ReadAllText(export) == "synthetic export", "uninstall preserved local state and exported file");
         // Only the fresh synthetic profile created above belongs to this run.
         File.Delete(Path.Combine(Settings, "preferences.json"));
+        var downloads = Path.Combine(Settings, "Updates");
+        if (Directory.Exists(downloads)) Directory.Delete(downloads);
         Directory.Delete(Settings);
     }
 
