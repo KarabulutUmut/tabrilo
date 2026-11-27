@@ -84,7 +84,8 @@ internal sealed class ExtractionStage : IDisposable
     public bool TryPublish(string leaf)
     {
         OutputFiles.ValidateLeaf(leaf);
-        var bytes = Encoding.Unicode.GetBytes(Path.Combine(folder, leaf));
+        var target = Path.Combine(folder, leaf);
+        var bytes = Encoding.Unicode.GetBytes(target);
         var buffer = new byte[2 * IntPtr.Size + 4 + bytes.Length];
 
         BitConverter.GetBytes(bytes.Length).CopyTo(buffer, 2 * IntPtr.Size);
@@ -106,7 +107,8 @@ internal sealed class ExtractionStage : IDisposable
         if (!SetFileInformationByHandle(entries[0].Handle, 3, buffer, (uint)buffer.Length))
         {
             var error = Marshal.GetLastWin32Error();
-            if (error is 80 or 183) return false;
+            // NTFS may report ACCESS_DENIED when the existing target is a nonempty directory.
+            if (error is 80 or 183 || error == 5 && Directory.Exists(target)) return false;
             throw new IOException("Could not publish the extraction folder.", new Win32Exception(error));
         }
         published = true;

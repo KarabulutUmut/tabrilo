@@ -25,6 +25,7 @@ namespace Tabrilo.Windows;
 internal sealed class FileActions : IDisposable
 {
     private Window? shelf;
+    private Window? shareHost;
     private DataTransferManager? sharing;
     private IStorageItem[] shareItems = [];
     private readonly ObservableCollection<string> references = [];
@@ -78,19 +79,23 @@ internal sealed class FileActions : IDisposable
                 var items = new List<IStorageItem>();
                 foreach (var path in paths)
                     items.Add(Directory.Exists(path) ? await StorageFolder.GetFolderFromPathAsync(path) : await StorageFile.GetFileFromPathAsync(path));
-                var hwnd = new WindowInteropHelper(owner ?? Application.Current.MainWindow).EnsureHandle();
-                var api = DataTransferManager.As<IShareInterop>();
-                var iid = new Guid("a5caee9b-8708-49d1-8d36-67d25a8da00c");
-                var ptr = api.GetForWindow(hwnd, ref iid);
+                shareHost?.Close();
+                var shareOwner = owner is { IsVisible: true, WindowState: not WindowState.Minimized } ? owner : OpenShareHost(paths);
+                var ptr = IntPtr.Zero;
                 try
                 {
+                    var hwnd = new WindowInteropHelper(shareOwner).EnsureHandle();
+                    var api = DataTransferManager.As<IShareInterop>();
+                    var iid = new Guid("a5caee9b-8708-49d1-8d36-67d25a8da00c");
+                    ptr = api.GetForWindow(hwnd, ref iid);
                     if (sharing != null) sharing.DataRequested -= OnShare;
                     sharing = MarshalInterface<DataTransferManager>.FromAbi(ptr);
                     shareItems = items.ToArray();
                     sharing.DataRequested += OnShare;
                     api.ShowShareUIForWindow(hwnd);
                 }
-                finally { Marshal.Release(ptr); }
+                catch { shareHost?.Close(); throw; }
+                finally { if (ptr != IntPtr.Zero) Marshal.Release(ptr); }
                 return "Windows share opened";
             default: throw new ArgumentException("Unknown file action.");
         }
@@ -171,8 +176,31 @@ internal sealed class FileActions : IDisposable
     {
         args.Request.Data.Properties.Title = "Share selected items";
         args.Request.Data.SetStorageItems(shareItems, true);
+        if (shareHost is { } host)
+        {
+            args.Request.Data.ShareCanceled += (_, _) => host.Dispatcher.BeginInvoke(() => { if (shareHost == host) host.Close(); });
+            args.Request.Data.ShareCompleted += (_, _) => host.Dispatcher.BeginInvoke(() => { if (shareHost == host) host.Close(); });
+        }
         sender.DataRequested -= OnShare;
         shareItems = [];
+    }
+
+    private Window OpenShareHost(string[] paths)
+    {
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        var window = Dialogs.WindowFor(null, "Share", panel, 360, 200);
+        panel.Children.Add(Controls.Text(paths.Length == 1 ? Path.GetFileName(paths[0]) : $"{paths.Length} selected items"));
+        panel.Children.Add(Controls.Button("Close", window.Close));
+        window.Closed += (_, _) =>
+        {
+            if (sharing != null) sharing.DataRequested -= OnShare;
+            shareItems = [];
+            shareHost = null;
+        };
+        shareHost = window;
+        window.Show();
+        window.Activate();
+        return window;
     }
 
     [ComImport, Guid("3A3DCD6C-3EAB-43DC-BCDE-45671CE800C8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -215,6 +243,7 @@ internal sealed class FileActions : IDisposable
 
     public void Dispose()
     {
+        shareHost?.Close();
         shelf?.Close();
         if (sharing != null) sharing.DataRequested -= OnShare;
         shareItems = [];
